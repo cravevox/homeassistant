@@ -1,2 +1,2 @@
-# home-assistant-blueprints
+# homeassistant
 A repo for HA (Home Assistant)  Blueprints
