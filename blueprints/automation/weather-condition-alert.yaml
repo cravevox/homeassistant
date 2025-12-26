@@ -409,47 +409,48 @@ actions:
                 sequence:
                   # Build the alert message text
                   - variables:
-                      alert_message_text: >-
-                        {% if first_match %}
-                          {% set cond = first_match.condition %}
-                          {% set dt_start = as_datetime(first_match.datetime) | as_local %}
-                          {% set dt_end = as_datetime(last_match.datetime) | as_local %}
-                          {% set start_time = dt_start.strftime('%-I:%M %p') %}
-                          {% set end_time = dt_end.strftime('%-I:%M %p') %}
-                          {% if cond == 'exceptional' %}
-                            {% set kind = 'Exceptional weather' %}
-                          {% elif 'snow' in cond and 'rain' in cond %}
-                            {% set kind = 'Snow and rain' %}
-                          {% elif 'snow' in cond %}
-                            {% set kind = 'Snow' %}
-                          {% elif 'rain' in cond %}
-                            {% set kind = 'Rain' %}
-                          {% elif cond == 'hail' %}
-                            {% set kind = 'Hail' %}
-                          {% else %}
-                            {% set kind = 'Precipitation' %}
-                          {% endif %}
-                          {% if include_horizon_suffix %}
-                            {% set suffix = ' in the next ' ~ hours_to_check ~ ' hours' %}
-                          {% else %}
-                            {% set suffix = '' %}
-                          {% endif %}
-                          {% if cond == 'exceptional' %}
-                            {% if matching_count|int == 1 %}
-                              Exceptional Weather Notice! Exceptional conditions expected around {{ start_time }}{{ suffix }}. Check your local weather alerts for more details.
+                          alert_message_text: >-
+                            {% if first_match %}
+                              {% set cond = first_match.condition %}
+                              {% set dt_start = as_datetime(first_match.datetime) | as_local %}
+                              {% set dt_end = as_datetime(last_match.datetime) | as_local %}
+                              {% set start_time = dt_start.strftime('%-I:%M %p') %}
+                              {% set end_time = dt_end.strftime('%-I:%M %p') %}
+                              {% if cond == 'exceptional' %}
+                                {% set kind = 'Exceptional conditions' %}
+                              {% elif 'snow' in cond and 'rain' in cond %}
+                                {% set kind = 'Snow and rain' %}
+                              {% elif 'snow' in cond %}
+                                {% set kind = 'Snow' %}
+                              {% elif 'rain' in cond %}
+                                {% set kind = 'Rain' %}
+                              {% elif cond == 'hail' %}
+                                {% set kind = 'Hail' %}
+                              {% else %}
+                                {% set kind = 'Precipitation' %}
+                              {% endif %}
+                              {% if include_horizon_suffix %}
+                                {% set suffix = ' in the next ' ~ hours_to_check ~ ' hours' %}
+                              {% else %}
+                                {% set suffix = '' %}
+                              {% endif %}
+                      
+                              {% if cond == 'exceptional' %}
+                                {% if matching_count|int == 1 %}
+                                  Exceptional conditions expected around {{ start_time }}{{ suffix }}. Check your local weather alerts for more details.
+                                {% else %}
+                                  Exceptional conditions expected between {{ start_time }} and {{ end_time }}{{ suffix }}. Check your local weather alerts for more details.
+                                {% endif %}
+                              {% else %}
+                                {% if matching_count|int == 1 %}
+                                  {{ kind }} expected around {{ start_time }}{{ suffix }}.
+                                {% else %}
+                                  {{ kind }} expected between {{ start_time }} and {{ end_time }}{{ suffix }}.
+                                {% endif %}
+                              {% endif %}
                             {% else %}
-                              Exceptional Weather Notice! Exceptional conditions expected between {{ start_time }} and {{ end_time }}{{ suffix }}. Check your local weather alerts for more details.
+                              {{ '' }}
                             {% endif %}
-                          {% else %}
-                            {% if matching_count|int == 1 %}
-                              {{ kind }} Notice! {{ kind }} expected around {{ start_time }}{{ suffix }}.
-                            {% else %}
-                              {{ kind }} Notice! {{ kind }} expected between {{ start_time }} and {{ end_time }}{{ suffix }}.
-                            {% endif %}
-                          {% endif %}
-                        {% else %}
-                          {{ '' }}
-                        {% endif %}
 
                   # Turn on boolean and set message
                   - action: input_boolean.turn_on
