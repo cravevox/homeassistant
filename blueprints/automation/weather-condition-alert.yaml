@@ -11,9 +11,9 @@ blueprint:
 
     - Toggles an **input_boolean** helper ON/OFF to indicate whether an alert is active.
     - Writes a **human-friendly message** into an **input_text** helper, for example:
-      - `Snow expected between 10:00 PM and 11:00 PM (within the next 6 hours).`
-      - `Rain expected between 3:00 PM and 5:00 PM (within the next 12 hours).`
-      - For **exceptional** conditions, it will tell you to check your local weather source.
+      - `Snow expected between 10:00 PM and 11:00 PM in the next 6 hours (~4.2 mm).`
+      - `Rain expected around 3:00 PM in the next 12 hours (~0.8 mm).`
+      - For **exceptional** conditions, it will tell you to check your local weather alerts.
 
     Optionally, it can also:
 
@@ -400,9 +400,7 @@ actions:
       debug_enabled: !input enable_debug
       minutes_since_midnight: "{{ now().hour * 60 + now().minute }}"
       run_this_cycle: >-
-        {% if trigger.platform is none %}
-          true
-        {% elif interval_minutes <= 0 %}
+        {% if interval_minutes <= 0 %}
           false
         {% else %}
           {{ (minutes_since_midnight % interval_minutes) == 0 }}
