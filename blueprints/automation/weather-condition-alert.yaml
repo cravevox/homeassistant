@@ -237,7 +237,7 @@ blueprint:
                 - domain: input_text
 
     precipitation_section:
-      name: 🌧️ Precipitation tracking (optional)
+      name: 🌧️ Precipitation amount tracking (optional)
       icon: mdi:weather-rainy
       collapsed: true
       description: >
@@ -400,7 +400,7 @@ actions:
       debug_enabled: !input enable_debug
       minutes_since_midnight: "{{ now().hour * 60 + now().minute }}"
       run_this_cycle: >-
-        {% if trigger is not defined %}
+        {% if trigger.platform is none %}
           true
         {% elif interval_minutes <= 0 %}
           false
