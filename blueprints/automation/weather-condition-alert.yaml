@@ -242,14 +242,23 @@ blueprint:
       collapsed: true
       description: >
         Optionally track the total expected precipitation (in mm) across all
-        matching hours in the lookahead window. This value is written to an
-        input_number helper so you can display it on a dashboard card.
+        hours in the lookahead window. The precipitation total is always
+        included in the alert text message, but enabling this writes the raw
+        number to a separate input_number helper. This is useful for dashboard
+        gauges, badges, history graphs, or as a condition in other automations
+        (e.g. "if expected precipitation > 20 mm, close the garage door").
+        If you only need the text message, you can leave this off.
       input:
         track_precipitation:
           name: Track precipitation amount
           description: >
             If enabled, the total expected precipitation (mm) from all hours in
-            the lookahead window will be written to the input_number helper below.
+            the lookahead window will be written to the input_number helper
+            below. Note: the precipitation total is always included in the
+            alert text message when precipitation is expected, regardless of
+            this setting. This toggle only controls whether the raw number is
+            also stored in a separate helper for use in gauges, graphs, or
+            other automations.
           default: false
           selector:
             boolean: {}
@@ -257,9 +266,11 @@ blueprint:
         precipitation_helper:
           name: Precipitation amount helper (input_number)
           description: >
-            An input_number helper to store the total expected precipitation in mm.
-            Create one with min=0, max=500, step=0.1 and unit "mm".
-            Only used if "Track precipitation amount" is enabled.
+            An input_number helper to store the total expected precipitation
+            in mm as a standalone value. Only used if "Track precipitation
+            amount" is enabled above. To create one: go to Settings → Devices
+            & Services → Helpers → Create Helper → Number, and set min=0,
+            max=500, step=0.1, unit of measurement="mm".
           default: {}
           selector:
             entity:
@@ -435,7 +446,7 @@ actions:
               first_match: "{{ matching_hours[0] if matching_count|int > 0 else none }}"
               last_match: "{{ matching_hours[-1] if matching_count|int > 1 else first_match }}"
 
-              total_precipitation: >
+              total_precipitation: >-
                 {% set ns = namespace(total=0) %}
                 {% for h in hourly %}
                   {% set ns.total = ns.total + (h.precipitation | float(0)) %}
@@ -480,20 +491,20 @@ actions:
                             {% set suffix = '' %}
                           {% endif %}
                           {% set precip_info = '' %}
-                          {% if track_precip and total_precipitation | float > 0 %}
-                            {% set precip_info = ' Total expected: ' ~ total_precipitation ~ ' mm.' %}
+                          {% if total_precipitation | float > 0 %}
+                            {% set precip_info = ' (~' ~ total_precipitation ~ ' mm)' %}
                           {% endif %}
                           {% if cond == 'exceptional' %}
                             {% if matching_count|int == 1 %}
-                              Exceptional Weather Notice! Exceptional conditions expected around {{ start_time }}{{ suffix }}.{{ precip_info }} Check your local weather alerts for more details.
+                              Exceptional conditions expected around {{ start_time }}{{ suffix }}{{ precip_info }}. Check your local weather alerts for more details.
                             {% else %}
-                              Exceptional Weather Notice! Exceptional conditions expected between {{ start_time }} and {{ end_time }}{{ suffix }}.{{ precip_info }} Check your local weather alerts for more details.
+                              Exceptional conditions expected between {{ start_time }} and {{ end_time }}{{ suffix }}{{ precip_info }}. Check your local weather alerts for more details.
                             {% endif %}
                           {% else %}
                             {% if matching_count|int == 1 %}
-                              {{ kind }} Notice! {{ kind }} expected around {{ start_time }}{{ suffix }}.{{ precip_info }}
+                              {{ kind }} expected around {{ start_time }}{{ suffix }}{{ precip_info }}.
                             {% else %}
-                              {{ kind }} Notice! {{ kind }} expected between {{ start_time }} and {{ end_time }}{{ suffix }}.{{ precip_info }}
+                              {{ kind }} expected between {{ start_time }} and {{ end_time }}{{ suffix }}{{ precip_info }}.
                             {% endif %}
                           {% endif %}
                         {% else %}
