@@ -1,0 +1,217 @@
+type: conditional
+conditions:
+  - entity: input_boolean.weather_precipitation_alert
+    state: "on"
+card:
+  type: custom:mushroom-template-card
+  primary: >
+    {% set msg = states('input_text.weather_precipitation_alert_message') |
+    lower %} {% if 'snow' in msg and 'rain' in msg %}
+      Snow + Rain Alert
+    {% elif 'snow' in msg %}
+      Snow Alert
+    {% elif 'rain' in msg %}
+      Rain Alert
+    {% elif 'hail' in msg %}
+      Hail Alert
+    {% elif 'exceptional' in msg %}
+      Exceptional Alert
+    {% else %}
+      Weather Alert
+    {% endif %}
+  secondary: |
+    {{ states('input_text.weather_precipitation_alert_message') }}
+  multiline_secondary: true
+  icon_color: >
+    {% set msg = states('input_text.weather_precipitation_alert_message') |
+    lower %} {% if 'snow' in msg and 'rain' in msg %}
+      purple
+    {% elif 'snow' in msg %}
+      lightblue
+    {% elif 'rain' in msg %}
+      cyan
+    {% else %}
+      indigo
+    {% endif %}
+  layout: horizontal
+  fill_container: true
+  tap_action:
+    action: navigate
+    navigation_path: /dashboard-weather
+  hold_action:
+    action: more-info
+    entity: weather.home
+  card_mod:
+    style: >
+      ha-card {
+        position: relative;
+        overflow: hidden;
+        border-radius: 18px;
+        backdrop-filter: blur(12px);
+        background: linear-gradient(
+          135deg,
+          rgba(135, 206, 250, 0.25) 0%,
+          rgba(100, 149, 237, 0.35) 50%,
+          rgba(70, 130, 180, 0.45) 100%
+        );
+        /* Give it a little height so 2+ lines can show */
+        min-height: 72px;
+      }
+
+
+      /* ============================
+         ✅ WRAP PRIMARY TEXT (Mushroom shadow DOM)
+         ============================ */
+
+      /* Target the internal Mushroom elements via card-mod `$` */
+
+      mushroom-state-info$:
+        .primary {
+          white-space: normal !important;
+          overflow: visible !important;
+          text-overflow: unset !important;
+
+          /* Mushroom often clamps to 1 line using -webkit-line-clamp */
+          display: block !important;
+          -webkit-line-clamp: unset !important;
+          -webkit-box-orient: unset !important;
+          max-height: none !important;
+
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          line-height: 1.2;
+        }
+
+      /* Some versions clamp on a different internal element too */
+
+      mushroom-state-item$:
+        .primary {
+          white-space: normal !important;
+          overflow: visible !important;
+          text-overflow: unset !important;
+          display: block !important;
+          -webkit-line-clamp: unset !important;
+          -webkit-box-orient: unset !important;
+          max-height: none !important;
+          word-break: break-word;
+          overflow-wrap: anywhere;
+          line-height: 1.2;
+        }
+
+      /* === Keyframes === */
+
+      @keyframes rainfall_fast { 0% { transform: translateY(-60%); } 100% {
+      transform: translateY(60%); } }
+
+      @keyframes rainfall_slow { 0% { transform: translateY(-40%); } 100% {
+      transform: translateY(40%); } }
+
+      @keyframes snowfall_near { 0% { background-position: 0 0; } 100% {
+      background-position: 0 260px; } }
+
+      @keyframes snowfall_far  { 0% { background-position: 0 0; } 100% {
+      background-position: 0 220px; } }
+
+
+      {% set msg = states('input_text.weather_precipitation_alert_message') |
+      lower %}
+
+
+      {# ============================
+         ❄ SNOW (wins if present)
+         ============================ #}
+      {% if 'snow' in msg %}
+
+
+      ha-card::before,
+
+      ha-card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+        background-repeat: repeat-y;
+        mix-blend-mode: screen;
+      }
+
+
+      ha-card::before {
+        opacity: 0.7;
+        background-size: 100% 260px;
+        background-image:
+          radial-gradient(circle at 5% 10%,   rgba(255,255,255,0.95) 0, rgba(255,255,255,0.95) 2px, transparent 3px),
+          radial-gradient(circle at 20% 25%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 40% 15%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 60% 20%,  rgba(255,255,255,0.95) 0, rgba(255,255,255,0.95) 2px, transparent 3px),
+          radial-gradient(circle at 80% 18%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 10% 45%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 30% 55%,  rgba(255,255,255,0.95) 0, rgba(255,255,255,0.95) 2px, transparent 3px),
+          radial-gradient(circle at 50% 40%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 70% 50%,  rgba(255,255,255,0.95) 0, rgba(255,255,255,0.95) 2px, transparent 3px),
+          radial-gradient(circle at 90% 42%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px);
+        animation: snowfall_near 14s linear infinite;
+      }
+
+
+      ha-card::after {
+        opacity: 0.45;
+        background-size: 100% 220px;
+        background-image:
+          radial-gradient(circle at 8% 18%,   rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 25% 32%,  rgba(255,255,255,0.95) 0, rgba(255,255,255,0.95) 2px, transparent 3px),
+          radial-gradient(circle at 42% 22%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px),
+          radial-gradient(circle at 63% 30%,  rgba(255,255,255,0.95) 0, rgba(255,255,255,0.95) 2px, transparent 3px),
+          radial-gradient(circle at 82% 26%,  rgba(255,255,255,0.9)  0, rgba(255,255,255,0.9)  2px, transparent 3px);
+        animation: snowfall_far 20s linear infinite;
+      }
+
+
+      {% elif 'rain' in msg %}
+
+
+      ha-card::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -80%;
+        bottom: -80%;
+        pointer-events: none;
+        opacity: 0.5;
+        background-image:
+          linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 40%, rgba(255,255,255,0) 100%),
+          linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 40%, rgba(255,255,255,0) 100%),
+          linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.75) 40%, rgba(255,255,255,0) 100%);
+        background-repeat: no-repeat;
+        background-size: 2px 26px, 2px 24px, 2px 28px;
+        background-position: 7% -10%, 38% -4%, 71% -6%;
+        animation: rainfall_fast 0.8s linear infinite;
+        mix-blend-mode: screen;
+      }
+
+
+      ha-card::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: -40%;
+        bottom: -40%;
+        pointer-events: none;
+        opacity: 0.28;
+        background-image:
+          linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 40%, rgba(255,255,255,0) 100%),
+          linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 40%, rgba(255,255,255,0) 100%),
+          linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.6) 40%, rgba(255,255,255,0) 100%);
+        background-repeat: no-repeat;
+        background-size: 2px 24px, 2px 28px, 2px 22px;
+        background-position: 12% 10%, 47% 5%, 79% 14%;
+        animation: rainfall_slow 0.5s linear infinite;
+        mix-blend-mode: screen;
+      }
+
+
+      {% endif %}
+grid_options:
+  columns: 12
+  rows: auto
