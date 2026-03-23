@@ -22,7 +22,11 @@ blueprint:
           Companion app devices when a cycle finishes.</li>
       <li><b>Alexa announcements</b> — announce on one or more Echo devices via
           the Alexa Media Player integration.</li>
-      <li><b>Google TTS</b> — announce on one or more Google/Nest speakers.</li>
+      <li><b>TTS (text-to-speech) / Speaker announcements</b> — announce on
+          any speaker using a Home Assistant TTS engine. Works with Google TTS,
+          Home Assistant Voice,
+          Piper, Nabu Casa Cloud, OpenAI, and more — any TTS integration you
+          have installed. Supports two TTS engines for mixed speaker setups.</li>
       <li><b>Quiet hours</b> — suppress notifications during sleeping hours
           with per-channel control (e.g. silence speakers but keep mobile
           alerts). Dashboard helpers still update. Set times manually or use a
@@ -60,7 +64,7 @@ blueprint:
       <li><b>Test your setup:</b> Go to Developer Tools → Actions →
           <code>automation.trigger</code>, select your LaundryMinder
           automation, and run it. This sends a test message to <b>all</b>
-          configured notification channels (mobile push, Alexa, Google)
+          configured notification channels (mobile push, Alexa, TTS speakers)
           so you can verify everything is connected correctly in one shot.
           It does not simulate a laundry cycle — it only tests
           notifications.</li>
@@ -91,7 +95,7 @@ blueprint:
     <details><summary><b>Quiet hours</b> 🌙</summary>
     <p></p>
     <p>Suppress notifications during quiet hours — with per-channel control.
-    For example, silence Alexa and Google speakers at night while still
+    For example, silence Alexa and TTS speakers at night while still
     receiving mobile push notifications. Dashboard helpers still update
     normally so your dashboard always reflects the current state.
     Two modes are available:</p>
@@ -110,8 +114,8 @@ blueprint:
     ---
 
     **Author:** CraveVox
-    **Version:** 1.0.0
-    **Last updated:** 2026-03-10
+    **Version:** 1.1.0
+    **Last updated:** 2026-03-22
 
   domain: automation
   source_url: https://github.com/cravevox/homeassistant/blob/main/blueprints/automation/laundryminder.yaml
@@ -178,9 +182,12 @@ blueprint:
           name: "Stop delay (minutes)"
           description: >
             How many minutes the machine must stay in the "stopped" state
-            before a cycle is considered complete. This prevents false
-            notifications from mid-cycle pauses (e.g. between wash and rinse).
-            5 minutes is a good starting point for most machines.
+            before a cycle is considered complete. This applies to whichever
+            detection method you choose below and prevents false notifications
+            from mid-cycle pauses (e.g. between wash and rinse). Suggested
+            values: **Integration** 1–2 min (state transitions are clean),
+            **Power sensor** 5 min (handles mid-cycle power dips),
+            **Vibration sensor** 5 min (handles pauses between phases).
           default: 5
           selector:
             number:
@@ -194,10 +201,12 @@ blueprint:
           name: "Start delay (minutes)"
           description: >
             How many minutes the machine must stay in the "running" state
-            before a cycle is considered started. This prevents false
-            start detections from brief power spikes or accidental bumps
-            (especially useful for vibration sensors). 1 minute is a good
-            starting point.
+            before a cycle is considered started. This applies to whichever
+            detection method you choose below and prevents false start
+            detections. Suggested values: **Integration** 0–1 min (state
+            changes are reliable), **Power sensor** 0–1 min (the watt
+            threshold already filters noise), **Vibration sensor** 1–2 min
+            (brief bumps can false-trigger).
           default: 1
           selector:
             number:
@@ -369,6 +378,12 @@ blueprint:
         ⚠️ Only configure this section if you selected **"Vibration sensor"**
         as the detection method in "Washer — General" above. If you chose a
         different method, skip this section entirely.
+
+
+        The blueprint treats the sensor as running when it reports **on**
+        (vibrating) and stopped when it reports **off**. The start and stop
+        delays configured in "Washer — General" control how long the sensor
+        must stay in each state before a cycle start or finish is confirmed.
       input:
         washer_vibration_sensor:
           name: "Vibration sensor entity"
@@ -442,10 +457,13 @@ blueprint:
           name: "Stop delay (minutes)"
           description: >
             How many minutes the machine must stay in the "stopped" state
-            before a cycle is considered complete. This prevents false
-            notifications from mid-cycle pauses (e.g. cool-down phases
-            or wrinkle-prevention tumbles). 5 minutes is a good starting
-            point.
+            before a cycle is considered complete. This applies to whichever
+            detection method you choose below and prevents false notifications
+            from mid-cycle pauses (e.g. cool-down phases or wrinkle-prevention
+            tumbles). Suggested values: **Integration** 1–2 min (state
+            transitions are clean), **Power sensor** 5 min (handles mid-cycle
+            power dips), **Vibration sensor** 5 min (handles pauses between
+            phases).
           default: 5
           selector:
             number:
@@ -459,10 +477,12 @@ blueprint:
           name: "Start delay (minutes)"
           description: >
             How many minutes the machine must stay in the "running" state
-            before a cycle is considered started. This prevents false
-            start detections from brief power spikes or accidental bumps
-            (especially useful for vibration sensors). 1 minute is a good
-            starting point.
+            before a cycle is considered started. This applies to whichever
+            detection method you choose below and prevents false start
+            detections. Suggested values: **Integration** 0–1 min (state
+            changes are reliable), **Power sensor** 0–1 min (the watt
+            threshold already filters noise), **Vibration sensor** 1–2 min
+            (brief bumps can false-trigger).
           default: 1
           selector:
             number:
@@ -632,6 +652,12 @@ blueprint:
         ⚠️ Only configure this section if you selected **"Vibration sensor"**
         as the detection method in "Dryer — General" above. If you chose a
         different method, skip this section entirely.
+
+
+        The blueprint treats the sensor as running when it reports **on**
+        (vibrating) and stopped when it reports **off**. The start and stop
+        delays configured in "Dryer — General" control how long the sensor
+        must stay in each state before a cycle start or finish is confirmed.
       input:
         dryer_vibration_sensor:
           name: "Vibration sensor entity"
@@ -793,30 +819,47 @@ blueprint:
               multiline: true
 
     # =========================================================================
-    #  SECTION 5 — GOOGLE TTS (OPTIONAL)
+    #  SECTION 5 — TTS / SPEAKER ANNOUNCEMENTS (OPTIONAL)
     # =========================================================================
-    google_section:
-      name: "Google TTS announcements"
+    tts_section:
+      name: "TTS (text-to-speech) / Speaker announcements"
       icon: mdi:speaker-message
       collapsed: true
       description: >
-        Announce cycle completion on Google Nest / Home speakers using the
-        Google Translate TTS or Nabu Casa Cloud TTS service.
+        Announce cycle completion on any speaker using a Home Assistant
+        TTS (text-to-speech) engine — Google TTS, Home Assistant Voice,
+        Piper, Nabu Casa Cloud, and more. Supports two TTS engines for
+        mixed speaker setups.
       input:
-        enable_google:
-          name: Enable Google TTS announcements
+        enable_tts:
+          name: Enable TTS / Speaker announcements
           description: >
             If enabled, a TTS announcement will be played on the selected
-            Google/Nest speakers when a cycle finishes.
+            speakers when a cycle finishes. You must also select a TTS engine
+            entity and at least one speaker below.
           default: false
           selector:
             boolean: {}
 
-        google_targets:
-          name: Google media player targets
+        tts_primary_entity:
+          name: Primary TTS engine entity
           description: >
-            Select one or more Google Nest / Home media player entities to
-            announce on.
+            The TTS engine to use for the primary speakers. The dropdown
+            shows whichever TTS integrations you have installed in Home
+            Assistant (e.g. Google Translate, Piper, Nabu Casa Cloud, OpenAI,
+            Google AI, etc.).
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: tts
+
+        tts_primary_targets:
+          name: Primary media player targets
+          description: >
+            Select one or more media player entities to announce on using
+            the primary TTS engine.
           default: []
           selector:
             entity:
@@ -824,29 +867,43 @@ blueprint:
               filter:
                 - domain: media_player
 
-        google_tts_service:
-          name: Google TTS service
+        tts_secondary_entity:
+          name: Secondary TTS engine entity (optional)
           description: >
-            The TTS service to use for Google announcements. Use
-            "tts.google_translate_say" for the free Google Translate TTS, or
-            "tts.cloud_say" if you have a Nabu Casa subscription.
-          default: "tts.google_translate_say"
+            Optional second TTS engine for a different set of speakers.
+            Leave empty if you only use one TTS engine.
+          default: ""
           selector:
-            text: {}
+            entity:
+              multiple: false
+              filter:
+                - domain: tts
 
-        google_washer_message:
-          name: "Washer announcement message (Google)"
+        tts_secondary_targets:
+          name: Secondary media player targets
           description: >
-            Message to announce on Google speakers when the washer finishes.
+            Select one or more media player entities to announce on using
+            the secondary TTS engine.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: media_player
+
+        tts_washer_message:
+          name: "Washer announcement message (TTS)"
+          description: >
+            Message to announce on TTS speakers when the washer finishes.
           default: "The washing machine cycle has finished"
           selector:
             text:
               multiline: true
 
-        google_dryer_message:
-          name: "Dryer announcement message (Google)"
+        tts_dryer_message:
+          name: "Dryer announcement message (TTS)"
           description: >
-            Message to announce on Google speakers when the dryer finishes.
+            Message to announce on TTS speakers when the dryer finishes.
           default: "The dryer cycle has finished"
           selector:
             text:
@@ -862,7 +919,7 @@ blueprint:
       description: >
         Suppress notifications during quiet hours — choose which channels
         to silence and which to keep. For example, suppress Alexa and
-        Google speakers at night but still receive mobile push
+        TTS speakers at night but still receive mobile push
         notifications. Dashboard helpers still update normally so your
         dashboard always reflects the current machine state. Choose
         between setting times manually or using a Schedule helper to
@@ -932,11 +989,11 @@ blueprint:
             hours. Channels **not** in this list will still send
             notifications during quiet hours. For example, remove "Mobile
             notifications" if you want phone alerts 24/7 but want to
-            silence Alexa and Google speakers at night.
+            silence Alexa and TTS speakers at night.
           default:
             - "mobile"
             - "alexa"
-            - "google"
+            - "tts"
           selector:
             select:
               multiple: true
@@ -946,8 +1003,8 @@ blueprint:
                   value: "mobile"
                 - label: Alexa announcements
                   value: "alexa"
-                - label: Google TTS announcements
-                  value: "google"
+                - label: TTS / Speaker announcements
+                  value: "tts"
 
     # =========================================================================
     #  WASHER → DRYER HANDOFF REMINDERS
@@ -964,7 +1021,7 @@ blueprint:
         dryer monitoring to be enabled in their "General" sections above.
         Handoff notifications are sent through whichever channels you have
         enabled in the "Mobile Notifications", "Alexa Announcements", and
-        "Google TTS Announcements" sections.
+        "TTS / Speaker Announcements" sections.
       input:
         enable_handoff:
           name: Enable handoff reminders
@@ -1042,11 +1099,11 @@ blueprint:
             text:
               multiline: true
 
-        handoff_reminder_google_message:
-          name: "Handoff reminder message (Google)"
+        handoff_reminder_tts_message:
+          name: "Handoff reminder message (TTS)"
           description: >
-            The Google TTS announcement message when clothes haven't
-            been moved to the dryer. Only sent if the "Google TTS
+            The TTS announcement message when clothes haven't been
+            moved to the dryer. Only sent if the "TTS / Speaker
             Announcements" section is also enabled.
           default: "Reminder: the washer finished a while ago. Please move your clothes to the dryer."
           selector:
@@ -1062,11 +1119,11 @@ blueprint:
       icon: mdi:view-dashboard
       collapsed: true
       description: >
-        Update input_text helpers with a human-readable status message when
-        machines start or finish (e.g. "Washer finished at 2:45 PM"). Useful
-        for dashboard cards. The running state booleans are configured in
-        each machine's General section above — these text helpers are a
-        separate addition for richer dashboard displays.
+        Automatically update input_text helpers with a status message as
+        cycles progress. The text changes with each state — for example,
+        "Washer started at 2:00 PM" when a cycle begins, then "Washer
+        finished at 2:45 PM" when it completes. Useful for dashboard cards
+        that show what each machine is doing at a glance.
       input:
         enable_status_text:
           name: Enable status text helpers
@@ -1080,9 +1137,10 @@ blueprint:
         washer_status_text:
           name: "Washer status text helper (input_text)"
           description: >
-            An input_text helper that will show the washer's current status
-            (e.g. "Washer finished at 2:45 PM"). Only used if washer
-            monitoring is enabled in the "Washer — General" section.
+            An input_text helper that will be updated to "Washer started
+            at [time]" when a cycle begins and "Washer finished at [time]"
+            when it completes. Only used if washer monitoring is enabled
+            in the "Washer — General" section.
           default: ""
           selector:
             entity:
@@ -1093,9 +1151,10 @@ blueprint:
         dryer_status_text:
           name: "Dryer status text helper (input_text)"
           description: >
-            An input_text helper that will show the dryer's current status
-            (e.g. "Dryer finished at 3:30 PM"). Only used if dryer
-            monitoring is enabled in the "Dryer — General" section.
+            An input_text helper that will be updated to "Dryer started
+            at [time]" when a cycle begins and "Dryer finished at [time]"
+            when it completes. Only used if dryer monitoring is enabled
+            in the "Dryer — General" section.
           default: ""
           selector:
             entity:
@@ -1184,9 +1243,11 @@ actions:
       alexa_targets_var: !input alexa_targets
       alexa_type: !input alexa_announce_type
       alexa_svc: !input alexa_service_name
-      enable_google: !input enable_google
-      google_targets_var: !input google_targets
-      google_tts_svc: !input google_tts_service
+      enable_tts: !input enable_tts
+      tts_primary_entity_var: !input tts_primary_entity
+      tts_primary_targets_var: !input tts_primary_targets
+      tts_secondary_entity_var: !input tts_secondary_entity
+      tts_secondary_targets_var: !input tts_secondary_targets
 
       # Messages — all loaded as variables (can't use !input in templates)
       mob_washer_title: !input mobile_washer_title
@@ -1195,8 +1256,8 @@ actions:
       mob_dryer_msg: !input mobile_dryer_message
       alexa_washer_msg: !input alexa_washer_message
       alexa_dryer_msg: !input alexa_dryer_message
-      google_washer_msg: !input google_washer_message
-      google_dryer_msg: !input google_dryer_message
+      tts_washer_msg: !input tts_washer_message
+      tts_dryer_msg: !input tts_dryer_message
 
       # Quiet hours
       quiet_mode: !input quiet_hours_mode
@@ -1212,7 +1273,7 @@ actions:
       handoff_max: !input handoff_max_reminders
       handoff_reminder_mob_msg: !input handoff_reminder_mobile_message
       handoff_reminder_alexa_msg: !input handoff_reminder_alexa_message
-      handoff_reminder_google_msg: !input handoff_reminder_google_message
+      handoff_reminder_tts_msg: !input handoff_reminder_tts_message
 
       # Running state booleans (required, from machine sections)
       washer_bool_entity: !input washer_running_boolean
@@ -1507,19 +1568,40 @@ actions:
                 type: "{{ alexa_type }}"
             continue_on_error: true
 
-      # Google TTS test
+      # TTS — primary engine (test)
       - if:
           - condition: template
             value_template: >-
-              {{ enable_google and (google_targets_var | length > 0) }}
+              {{ enable_tts and (tts_primary_targets_var | length > 0)
+                 and (tts_primary_entity_var | length > 0) }}
         then:
           - repeat:
-              for_each: "{{ google_targets_var }}"
+              for_each: "{{ tts_primary_targets_var }}"
               sequence:
-                - action: "{{ google_tts_svc }}"
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_primary_entity_var }}"
                   data:
-                    entity_id: "{{ repeat.item }}"
-                    message: "LaundryMinder test notification. If you can hear this, Google announcements are working."
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "LaundryMinder test notification. If you can hear this, TTS announcements are working."
+                  continue_on_error: true
+
+      # TTS — secondary engine (test, optional)
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_secondary_targets_var | length > 0)
+                 and (tts_secondary_entity_var | length > 0) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_secondary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_secondary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "LaundryMinder test notification. If you can hear this, TTS announcements are working."
                   continue_on_error: true
 
       - stop: "Manual test complete"
@@ -1607,20 +1689,42 @@ actions:
                 type: "{{ alexa_type }}"
             continue_on_error: true
 
-      # Google TTS
+      # TTS — primary engine
       - if:
           - condition: template
             value_template: >-
-              {{ enable_google and (google_targets_var | length > 0)
-                 and (not is_quiet or 'google' not in quiet_channels) }}
+              {{ enable_tts and (tts_primary_targets_var | length > 0)
+                 and (tts_primary_entity_var | length > 0)
+                 and (not is_quiet or ('tts' not in quiet_channels and 'google' not in quiet_channels)) }}
         then:
           - repeat:
-              for_each: "{{ google_targets_var }}"
+              for_each: "{{ tts_primary_targets_var }}"
               sequence:
-                - action: "{{ google_tts_svc }}"
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_primary_entity_var }}"
                   data:
-                    entity_id: "{{ repeat.item }}"
-                    message: "{{ google_washer_msg }}"
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ tts_washer_msg }}"
+                  continue_on_error: true
+
+      # TTS — secondary engine (optional)
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_secondary_targets_var | length > 0)
+                 and (tts_secondary_entity_var | length > 0)
+                 and (not is_quiet or ('tts' not in quiet_channels and 'google' not in quiet_channels)) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_secondary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_secondary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ tts_washer_msg }}"
                   continue_on_error: true
 
   # =========================================================================
@@ -1706,20 +1810,42 @@ actions:
                 type: "{{ alexa_type }}"
             continue_on_error: true
 
-      # Google TTS
+      # TTS — primary engine
       - if:
           - condition: template
             value_template: >-
-              {{ enable_google and (google_targets_var | length > 0)
-                 and (not is_quiet or 'google' not in quiet_channels) }}
+              {{ enable_tts and (tts_primary_targets_var | length > 0)
+                 and (tts_primary_entity_var | length > 0)
+                 and (not is_quiet or ('tts' not in quiet_channels and 'google' not in quiet_channels)) }}
         then:
           - repeat:
-              for_each: "{{ google_targets_var }}"
+              for_each: "{{ tts_primary_targets_var }}"
               sequence:
-                - action: "{{ google_tts_svc }}"
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_primary_entity_var }}"
                   data:
-                    entity_id: "{{ repeat.item }}"
-                    message: "{{ google_dryer_msg }}"
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ tts_dryer_msg }}"
+                  continue_on_error: true
+
+      # TTS — secondary engine (optional)
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_secondary_targets_var | length > 0)
+                 and (tts_secondary_entity_var | length > 0)
+                 and (not is_quiet or ('tts' not in quiet_channels and 'google' not in quiet_channels)) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_secondary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_secondary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ tts_dryer_msg }}"
                   continue_on_error: true
 
   # =========================================================================
@@ -1761,19 +1887,41 @@ actions:
                 type: "{{ alexa_type }}"
             continue_on_error: true
 
-      # Google TTS
+      # TTS — primary engine
       - if:
           - condition: template
             value_template: >-
-              {{ enable_google and (google_targets_var | length > 0)
-                 and (not is_quiet or 'google' not in quiet_channels) }}
+              {{ enable_tts and (tts_primary_targets_var | length > 0)
+                 and (tts_primary_entity_var | length > 0)
+                 and (not is_quiet or ('tts' not in quiet_channels and 'google' not in quiet_channels)) }}
         then:
           - repeat:
-              for_each: "{{ google_targets_var }}"
+              for_each: "{{ tts_primary_targets_var }}"
               sequence:
-                - action: "{{ google_tts_svc }}"
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_primary_entity_var }}"
                   data:
-                    entity_id: "{{ repeat.item }}"
-                    message: "{{ handoff_reminder_google_msg }}"
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ handoff_reminder_tts_msg }}"
+                  continue_on_error: true
+
+      # TTS — secondary engine (optional)
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_secondary_targets_var | length > 0)
+                 and (tts_secondary_entity_var | length > 0)
+                 and (not is_quiet or ('tts' not in quiet_channels and 'google' not in quiet_channels)) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_secondary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_secondary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ handoff_reminder_tts_msg }}"
                   continue_on_error: true
 
