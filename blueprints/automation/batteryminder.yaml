@@ -1,0 +1,527 @@
+blueprint:
+  name: "🔋 BatteryMinder"
+  description: |
+    ## 🔋 BatteryMinder — Crystal-clear low-battery alerts for every device in your home
+
+    BatteryMinder scans **all** of your battery-powered devices on a schedule and
+    sends you one clean, easy-to-read notification listing exactly **what needs
+    new batteries and where to find it**. No more hunting through Settings to
+    figure out which sensor is dying.
+
+    It automatically finds every entity with a `battery` device class — you don't
+    list them one by one. The report is **sorted worst-first** and shows each
+    device's **battery level, room/area, labels, and even which battery it takes**
+    (via Battery Notes) so you know exactly what to grab and where to go.
+
+    <details><summary><b>Features</b> 🔔</summary>
+    <p></p>
+    <ul>
+      <li><b>Automatic discovery</b> — finds every <code>battery</code> device-class
+          sensor and low-battery binary sensor. Nothing to list manually.</li>
+      <li><b>Crystal-clear report</b> — one device per line, <b>sorted lowest
+          battery first</b>, showing <b>name, %, area/room and labels</b>. Ready-made
+          plain-text and HTML (email) versions are provided.</li>
+      <li><b>Battery type</b> — with the
+          <a href="https://github.com/andrew-codechimp/HA-Battery-Notes">Battery
+          Notes</a> integration, each line also shows <b>which battery the device
+          takes</b> (e.g. CR2032, 2x AAA) so you know what to grab. Battery Notes'
+          duplicate sensors are de-duplicated automatically. Degrades gracefully
+          if you don't use Battery Notes.</li>
+      <li><b>Two-tier severity</b> — a separate <b>Critical</b> threshold flags the
+          most urgent devices (🔴) apart from merely low ones (🟠), and dead/offline
+          sensors (⚫), so the worst offenders stand out at a glance.</li>
+      <li><b>Smart exclusions</b> — keep noisy devices out of the report three ways:
+          exclude specific entities, exclude by <b>label</b>, or exclude by
+          <b>name keyword</b> (e.g. <code>phone</code>, <code>tablet</code>,
+          <code>watch</code>) so fast-fluctuating phones and tablets don't spam you.
+          All optional and off by default.</li>
+      <li><b>Optional offline detection</b> — also flag battery sensors that have
+          gone <code>unavailable</code>/<code>unknown</code> (often a sign the
+          battery is completely dead).</li>
+      <li><b>Flexible schedule</b> — run at any time, every day or on a chosen
+          weekday.</li>
+      <li><b>Bring your own notification</b> — use any Home Assistant action:
+          mobile push, persistent notification, email, TTS/Alexa, a To-Do list,
+          or several at once. Rich template variables do the formatting for you.</li>
+      <li><b>All-clear option</b> — optionally get a friendly "everything's healthy"
+          message when nothing is low.</li>
+    </ul>
+    </details>
+
+    <details><summary><b>Setup guide</b> 🛠️</summary>
+    <p></p>
+    <ol>
+      <li>Create an automation from this blueprint.</li>
+      <li>Set your <b>Low battery threshold</b> (and optionally a lower
+          <b>Critical threshold</b>).</li>
+      <li>Pick a <b>time</b> and, if you like, a specific <b>weekday</b> to run the
+          check.</li>
+      <li>(Optional) Add any <b>exclusions</b> — specific entities, labels, or
+          name keywords like <code>phone</code>/<code>tablet</code>.</li>
+      <li>Configure your <b>notification action</b>. Use the ready-to-paste
+          examples below (mobile push and email) as a starting point.</li>
+      <li>Save the automation. Restarting Home Assistant is recommended so new
+          blueprints load fully.</li>
+      <li><b>Test it:</b> go to Developer Tools → Actions →
+          <code>automation.trigger</code>, pick your BatteryMinder automation and
+          run it. This fires your notification action immediately (it skips the
+          schedule) so you can confirm the formatting and delivery in one shot.</li>
+    </ol>
+    </details>
+
+    <details><summary><b>Template variables you can use in your action</b> 🧩</summary>
+    <p></p>
+    <p>These are filled in automatically and can be used anywhere in your
+    notification action (title, message, <code>data.html</code>, TTS text, etc.):</p>
+    <ul>
+      <li><code>{{ sensors_text }}</code> — the main event. A bulleted, plain-text
+          block, one device per line, sorted worst-first, with severity icon,
+          %, area and labels. Best for mobile push and TTS.</li>
+      <li><code>{{ sensors_html }}</code> — a styled HTML table (Device / Battery /
+          Area / Labels). Drop it into an SMTP notify action's
+          <code>data.html</code> for a clean email.</li>
+      <li><code>{{ summary }}</code> — a one-line headline, e.g.
+          "5 batteries need attention — 2 critical, 1 offline". Great for the title.</li>
+      <li><code>{{ low_count }}</code>, <code>{{ critical_count }}</code>,
+          <code>{{ offline_count }}</code> — the counts, if you want your own wording.</li>
+      <li><code>{{ sensors }}</code> — a simple comma-separated list of
+          "Name (12 %)" (the classic one-line format), if you prefer it.</li>
+    </ul>
+    <p><b>Ready-to-paste mobile push action:</b></p>
+    <pre>
+    action: notify.mobile_app_YOUR_PHONE
+    data:
+      title: "{{ summary }}"
+      message: |
+        {{ sensors_text }}
+    </pre>
+    <p><b>Ready-to-paste email action (SMTP notify):</b></p>
+    <pre>
+    action: notify.YOUR_EMAIL
+    data:
+      title: "Home Assistant — Battery Levels"
+      message: >-
+        The following devices have low battery:
+        {{ sensors_text }}
+      data:
+        html: >-
+          &lt;html&gt;&lt;body&gt;
+          &lt;p&gt;The following devices have low battery:&lt;/p&gt;
+          {{ sensors_html }}
+          &lt;/body&gt;&lt;/html&gt;
+    </pre>
+    </details>
+
+    ---
+
+    **Author:** CraveVox
+    **Version:** 1.1.0
+    **Last updated:** 2026-07-14
+
+  domain: automation
+  source_url: https://github.com/cravevox/homeassistant/blob/main/blueprints/automation/batteryminder.yaml
+  author: CraveVox
+  homeassistant:
+    min_version: "2024.6.0"
+
+  input:
+    # =========================================================================
+    #  THRESHOLDS
+    # =========================================================================
+    thresholds_section:
+      name: "Thresholds"
+      icon: mdi:battery-alert-variant-outline
+      collapsed: false
+      description: >
+        Decide what counts as "low" and (optionally) "critical".
+      input:
+        threshold:
+          name: "Low battery threshold (%)"
+          description: >
+            Battery sensors reporting **below** this level are included in the
+            report. Binary low-battery sensors (device class battery, state
+            "on") are always included regardless of this value.
+          default: 20
+          selector:
+            number:
+              min: 5
+              max: 100
+              step: 5
+              unit_of_measurement: "%"
+              mode: slider
+
+        critical_threshold:
+          name: "Critical battery threshold (%)"
+          description: >
+            Devices **below** this level are flagged as **critical** (🔴) and
+            sorted to the very top, so the most urgent replacements stand out.
+            Devices between the critical and low thresholds are shown as low (🟠).
+            Set this to 0 if you don't want a separate critical tier.
+          default: 10
+          selector:
+            number:
+              min: 0
+              max: 50
+              step: 5
+              unit_of_measurement: "%"
+              mode: slider
+
+        include_unavailable:
+          name: "Also flag offline (unavailable/unknown) battery sensors"
+          description: >
+            When on, battery sensors that are currently `unavailable` or
+            `unknown` are added to the report and marked offline (⚫). A battery
+            sensor that has gone dark is often a completely dead battery.
+          default: false
+          selector:
+            boolean: {}
+
+    # =========================================================================
+    #  SCHEDULE
+    # =========================================================================
+    schedule_section:
+      name: "Schedule"
+      icon: mdi:clock-outline
+      collapsed: false
+      description: >
+        When should BatteryMinder run its check?
+      input:
+        time:
+          name: "Time to run the check"
+          description: >
+            The daily time the battery scan runs.
+          default: "10:00:00"
+          selector:
+            time: {}
+
+        day:
+          name: "Weekday to run on"
+          description: >
+            Run every day (0) or only on a specific weekday
+            (1 = Monday … 7 = Sunday). For example, choose 1 to get a single
+            weekly battery report every Monday morning.
+          default: 0
+          selector:
+            number:
+              min: 0
+              max: 7
+              step: 1
+              mode: slider
+
+    # =========================================================================
+    #  EXCLUSIONS
+    # =========================================================================
+    exclusions_section:
+      name: "Exclusions (optional)"
+      icon: mdi:filter-remove-outline
+      collapsed: true
+      description: >
+        Keep noisy or irrelevant devices out of the report. Everything here is
+        optional and off by default — leave it all empty to monitor every
+        battery device.
+
+
+        **Tip:** Phones, tablets and watches report battery constantly and can
+        swing up and down all day. Use the **name keyword** exclusion below
+        (e.g. add `phone` and `tablet`) to keep them out of your battery report
+        without touching your other sensors.
+      input:
+        exclude_entities:
+          name: "Exclude specific battery sensors"
+          description: >
+            Individual battery sensors to ignore. Pick the exact entities you
+            never want in the report. (Only entities are matched here — pick the
+            entity, not the device.)
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: sensor
+                  device_class: battery
+                - domain: binary_sensor
+                  device_class: battery
+
+        exclude_labels:
+          name: "Exclude by label"
+          description: >
+            Any battery sensor carrying one of these labels is skipped. Handy if
+            you tag a group of devices (e.g. a "no-battery-alert" label) that you
+            never want reported.
+          default: []
+          selector:
+            label:
+              multiple: true
+
+        exclude_keywords:
+          name: "Exclude by name keyword"
+          description: >
+            Skip any battery sensor whose name or entity id **contains** one of
+            these words (case-insensitive). This is the easy way to drop
+            fast-fluctuating mobile devices: add `phone`, `tablet`, `watch`,
+            `iphone`, `ipad`, etc. Type your own word and press Enter to add it.
+            Leave empty to monitor everything.
+          default: []
+          selector:
+            select:
+              multiple: true
+              custom_value: true
+              mode: dropdown
+              options:
+                - phone
+                - tablet
+                - ipad
+                - iphone
+                - watch
+                - remote
+
+    # =========================================================================
+    #  REPORT CONTENT
+    # =========================================================================
+    report_section:
+      name: "Report content"
+      icon: mdi:battery-heart-variant
+      collapsed: true
+      description: >
+        Optional extras to include on each line of the report.
+      input:
+        show_battery_type:
+          name: "I use Battery Notes — show battery type"
+          description: >
+            **Leave this OFF unless you have the
+            [Battery Notes](https://github.com/andrew-codechimp/HA-Battery-Notes)
+            integration installed.**
+
+
+            When on, BatteryMinder shows **which battery each device takes**
+            (e.g. `CR2032`, `2x AAA`) on every line, so you know what to grab
+            before walking over. It reads the type from Battery Notes'
+            `battery_type_and_quantity` value (falling back to a device's
+            `…_battery_type` sensor). If a particular device has no type set,
+            the type is simply left off that line — nothing breaks.
+
+
+            **Note:** you do **not** need this toggle for de-duplication.
+            BatteryMinder always reports each physical device only once — it
+            automatically collapses Battery Notes' extra `…_battery_plus`
+            copies and any device that exposes both a battery % and a separate
+            "battery low" entity — whether this toggle is on or off. This
+            toggle only controls whether the battery **type** is looked up
+            and shown.
+          default: false
+          selector:
+            boolean: {}
+
+    # =========================================================================
+    #  NOTIFICATION
+    # =========================================================================
+    notification_section:
+      name: "Notification"
+      icon: mdi:bell-outline
+      collapsed: false
+      description: >
+        What should happen when low batteries are found? Use any Home Assistant
+        action — mobile push, persistent notification, email, TTS/Alexa, adding
+        to a To-Do list, or several at once.
+
+
+        Use the template variables `{{ sensors_text }}`, `{{ sensors_html }}`,
+        `{{ summary }}` and the counts in your action. See the **"Template
+        variables you can use in your action"** section at the top of this
+        blueprint for ready-to-paste examples.
+      input:
+        notify_when_healthy:
+          name: "Notify even when all batteries are healthy"
+          description: >
+            When on, your action also runs when nothing is low, so you can send
+            an "all clear" confirmation. Your action can check
+            `{{ low_count }}` (it will be 0) to word the message accordingly.
+            When off (default), BatteryMinder only notifies you when something
+            actually needs attention.
+          default: false
+          selector:
+            boolean: {}
+
+        actions:
+          name: "Actions"
+          description: >
+            The notification(s) or other action(s) to run. This is where you add
+            your notify service, persistent notification, TTS announcement, etc.
+          selector:
+            action: {}
+
+variables:
+  threshold: !input threshold
+  critical_threshold: !input critical_threshold
+  include_unavailable: !input include_unavailable
+  day: !input day
+  notify_when_healthy: !input notify_when_healthy
+  exclude_entities: !input exclude_entities
+  exclude_labels: !input exclude_labels
+  exclude_keywords: !input exclude_keywords
+  show_battery_type: !input show_battery_type
+
+  # Build the full list of low-battery items as JSON, then sort worst-first.
+  # Each item: {name, level(sort key), display, area, labels, type, severity, icon}.
+  # An entity is excluded if it is individually listed, carries an excluded
+  # label, its name/entity_id contains an excluded keyword, or it is the raw
+  # source sensor that a Battery Notes "…_battery_plus" sensor already covers.
+  battery_items_json: >-
+    {% set kw = exclude_keywords | map('lower') | list %}
+    {% set bn = namespace(sources=[]) %}
+    {% for s in states.sensor %}
+      {% if s.entity_id.endswith('_battery_plus') and s.attributes.source_entity_id is defined %}
+        {% set bn.sources = bn.sources + [s.attributes.source_entity_id] %}
+      {% endif %}
+    {% endfor %}
+    {% set ns = namespace(items=[]) %}
+    {% set seen = namespace(devs=[]) %}
+    {% for state in states.sensor
+        | selectattr('attributes.device_class', '==', 'battery') %}
+      {% set lbls = labels(state.entity_id) %}
+      {% set hay = (state.name ~ ' ' ~ state.entity_id) | lower %}
+      {% set excluded = state.entity_id in exclude_entities
+        or state.entity_id in bn.sources
+        or (exclude_labels | select('in', lbls) | list | length > 0)
+        or (kw | select('in', hay) | list | length > 0) %}
+      {% if not excluded %}
+        {% set dev = device_id(state.entity_id) %}
+        {% set lvl = state.state | int(-1) %}
+        {% set area = area_name(state.entity_id) %}
+        {% set names = lbls | map('label_name') | list %}
+        {% set btype = '' %}
+        {% if show_battery_type %}
+          {% set bt = state_attr(state.entity_id, 'battery_type_and_quantity') %}
+          {% if not bt %}
+            {% set tns = namespace(e='') %}
+            {% for e in (device_entities(dev) if dev else []) %}
+              {% if e.endswith('_battery_type') %}{% set tns.e = e %}{% endif %}
+            {% endfor %}
+            {% if tns.e %}{% set bt = states(tns.e) %}{% endif %}
+          {% endif %}
+          {% if bt and bt not in ['unknown', 'unavailable', 'none', 'None'] %}{% set btype = bt %}{% endif %}
+        {% endif %}
+        {% if 0 <= lvl < threshold | int %}
+          {% set sev = 'critical' if (critical_threshold | int > 0 and lvl < critical_threshold | int) else 'low' %}
+          {% set icon = '🔴' if sev == 'critical' else '🟠' %}
+          {% set ns.items = ns.items + [{'name': state.name, 'level': lvl,
+            'display': lvl ~ '%', 'area': area, 'labels': names, 'type': btype,
+            'severity': sev, 'icon': icon}] %}
+          {% if dev %}{% set seen.devs = seen.devs + [dev] %}{% endif %}
+        {% elif include_unavailable and state.state in ['unavailable', 'unknown'] %}
+          {% set ns.items = ns.items + [{'name': state.name, 'level': 1000,
+            'display': state.state, 'area': area, 'labels': names, 'type': btype,
+            'severity': 'offline', 'icon': '⚫'}] %}
+          {% if dev %}{% set seen.devs = seen.devs + [dev] %}{% endif %}
+        {% endif %}
+      {% endif %}
+    {% endfor %}
+    {% for state in states.binary_sensor
+        | selectattr('attributes.device_class', '==', 'battery')
+        | selectattr('state', '==', 'on') %}
+      {% set lbls = labels(state.entity_id) %}
+      {% set hay = (state.name ~ ' ' ~ state.entity_id) | lower %}
+      {% set bdev = device_id(state.entity_id) %}
+      {% set excluded = state.entity_id in exclude_entities
+        or state.entity_id.endswith('_battery_plus_low')
+        or (bdev and bdev in seen.devs)
+        or (exclude_labels | select('in', lbls) | list | length > 0)
+        or (kw | select('in', hay) | list | length > 0) %}
+      {% if not excluded %}
+        {% set btype = '' %}
+        {% if show_battery_type %}
+          {% set bt = state_attr(state.entity_id, 'battery_type_and_quantity') %}
+          {% if not bt %}
+            {% set dev = bdev %}
+            {% set tns = namespace(e='') %}
+            {% for e in (device_entities(dev) if dev else []) %}
+              {% if e.endswith('_battery_type') %}{% set tns.e = e %}{% endif %}
+            {% endfor %}
+            {% if tns.e %}{% set bt = states(tns.e) %}{% endif %}
+          {% endif %}
+          {% if bt and bt not in ['unknown', 'unavailable', 'none', 'None'] %}{% set btype = bt %}{% endif %}
+        {% endif %}
+        {% set ns.items = ns.items + [{'name': state.name, 'level': 1,
+          'display': 'low', 'area': area_name(state.entity_id),
+          'labels': lbls | map('label_name') | list, 'type': btype,
+          'severity': 'low', 'icon': '🟠'}] %}
+      {% endif %}
+    {% endfor %}
+    {{ ns.items | to_json }}
+
+  battery_items: "{{ (battery_items_json | from_json) | sort(attribute='level') }}"
+  low_count: "{{ battery_items | length }}"
+  critical_count: "{{ battery_items | selectattr('severity', '==', 'critical') | list | length }}"
+  offline_count: "{{ battery_items | selectattr('severity', '==', 'offline') | list | length }}"
+
+  # One-line headline, e.g. "5 batteries need attention — 2 critical, 1 offline".
+  summary: >-
+    {% if low_count | int == 0 %}All batteries are healthy 🔋{% else %}
+    {%- set bits = [] %}
+    {%- if critical_count | int > 0 %}{% set bits = bits + [critical_count ~ ' critical'] %}{% endif %}
+    {%- if offline_count | int > 0 %}{% set bits = bits + [offline_count ~ ' offline'] %}{% endif %}
+    {{- low_count }} batter{{ 'y' if low_count | int == 1 else 'ies' }} need attention
+    {%- if bits | length > 0 %} — {{ bits | join(', ') }}{% endif %}
+    {%- endif %}
+
+  # Classic comma-separated one-liner (kept for convenience/familiarity).
+  sensors: >-
+    {%- set ns = namespace(parts=[]) -%}
+    {%- for it in battery_items -%}
+      {%- set inner = it.display ~ (', ' ~ it.type if it.type else '') -%}
+      {%- set ns.parts = ns.parts + [it.name ~ ' (' ~ inner ~ ')'] -%}
+    {%- endfor -%}
+    {{ ns.parts | join(', ') }}
+
+  # The main event: a plain-text bullet block, one device per line, worst-first.
+  # e.g.  🔴 Front Door Lock — 8% — 🔋 CR2032 — Entryway — [door, exterior]
+  sensors_text: >-
+    {%- set ns = namespace(lines=[]) -%}
+    {%- for it in battery_items -%}
+      {%- set parts = [it.name, it.display] -%}
+      {%- if it.type %}{% set parts = parts + ['🔋 ' ~ it.type] %}{% endif -%}
+      {%- if it.area %}{% set parts = parts + [it.area] %}{% endif -%}
+      {%- if it.labels | length > 0 %}{% set parts = parts + ['[' ~ (it.labels | join(', ')) ~ ']'] %}{% endif -%}
+      {%- set ns.lines = ns.lines + [it.icon ~ ' ' ~ (parts | join(' — '))] -%}
+    {%- endfor -%}
+    {{ ns.lines | join('\n') }}
+
+  # A styled HTML table for email (data.html on an SMTP notify action).
+  sensors_html: >-
+    {%- if battery_items | length > 0 -%}
+    <table style="border-collapse:collapse;font-family:sans-serif;font-size:14px;">
+    <thead><tr>
+    <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ccc;">Device</th>
+    <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ccc;">Battery</th>
+    <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ccc;">Type</th>
+    <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ccc;">Area</th>
+    <th style="text-align:left;padding:6px 12px;border-bottom:2px solid #ccc;">Labels</th>
+    </tr></thead><tbody>
+    {%- for it in battery_items -%}
+    {%- set color = '#c0392b' if it.severity == 'critical' else ('#7f8c8d' if it.severity == 'offline' else '#e67e22') -%}
+    <tr>
+    <td style="padding:6px 12px;border-bottom:1px solid #eee;">{{ it.icon }} {{ it.name }}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid #eee;color:{{ color }};font-weight:bold;">{{ it.display }}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid #eee;">{{ it.type if it.type else '—' }}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid #eee;">{{ it.area if it.area else '—' }}</td>
+    <td style="padding:6px 12px;border-bottom:1px solid #eee;">{{ it.labels | join(', ') if it.labels | length > 0 else '—' }}</td>
+    </tr>
+    {%- endfor -%}
+    </tbody></table>
+    {%- endif -%}
+
+trigger:
+  - platform: time
+    at: !input time
+
+condition:
+  - condition: template
+    value_template: >-
+      {{ (day | int == 0 or day | int == now().isoweekday())
+         and (battery_items | length > 0 or notify_when_healthy) }}
+
+action:
+  - choose: []
+    default: !input actions
+
+mode: single
