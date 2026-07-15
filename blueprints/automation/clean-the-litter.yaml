@@ -1,0 +1,214 @@
+blueprint:
+  name: Litterbox Tracker (Motion + Clean Door) v1.1
+  description: >
+    Tracks litterbox usage via motion (counts visits) and cleaning via a human-only door sensor.
+    - Motion increments a counter once per "visit" (motion cluster).
+    - Door open/close marks cleaned, resets counter, clears dirty flag.
+    - Dirty flag turns on when either usage threshold OR hours-since-cleaned threshold is met,
+      evaluated only when an event occurs (visit counted or door opened/closed).
+  domain: automation
+
+  input:
+    motion_sensor:
+      name: Litterbox Motion Sensor
+      selector:
+        entity:
+          domain: binary_sensor
+
+    clean_door_sensor:
+      name: Litterbox Clean Door Sensor (Human-only)
+      selector:
+        entity:
+          domain: binary_sensor
+
+    dirty_boolean:
+      name: Dirty / Needs Cleaning Boolean
+      selector:
+        entity:
+          domain: input_boolean
+
+    last_cleaned_datetime:
+      name: Last Cleaned (Input Datetime)
+      selector:
+        entity:
+          domain: input_datetime
+
+    usage_counter:
+      name: Times Used Counter
+      selector:
+        entity:
+          domain: counter
+
+    dirty_after_uses:
+      name: Mark dirty after this many uses
+      default: 5
+      selector:
+        number:
+          min: 1
+          max: 50
+          mode: slider
+          step: 1
+
+    dirty_after_hours:
+      name: Mark dirty after this many hours since last cleaned
+      default: 16
+      selector:
+        number:
+          min: 1
+          max: 168
+          mode: slider
+          step: 1
+
+    min_motion_on_seconds:
+      name: Minimum motion ON time (seconds) to count as a visit start
+      default: 6
+      selector:
+        number:
+          min: 1
+          max: 60
+          mode: slider
+          step: 1
+
+    motion_off_cooldown_seconds:
+      name: Motion OFF cooldown (seconds) before counting another visit
+      default: 90
+      selector:
+        number:
+          min: 5
+          max: 600
+          mode: slider
+          step: 5
+
+    min_door_open_seconds_for_clean:
+      name: Minimum door open time (seconds) to count as a cleaning event
+      default: 20
+      selector:
+        number:
+          min: 0
+          max: 600
+          mode: slider
+          step: 5
+
+mode: parallel
+max: 10
+
+trigger:
+  - id: visit_motion
+    platform: state
+    entity_id: !input motion_sensor
+    to: "on"
+    for:
+      seconds: !input min_motion_on_seconds
+
+  - id: clean_door_open
+    platform: state
+    entity_id: !input clean_door_sensor
+    to: "on"
+
+variables:
+  motion_entity: !input motion_sensor
+  door_entity: !input clean_door_sensor
+  dirty_bool: !input dirty_boolean
+  last_cleaned: !input last_cleaned_datetime
+  counter_entity: !input usage_counter
+  uses_threshold: !input dirty_after_uses
+  hours_threshold: !input dirty_after_hours
+  min_clean_open_seconds: !input min_door_open_seconds_for_clean
+
+action:
+  - choose:
+      # ---------------------------
+      # Branch 1: Count a "visit"
+      # ---------------------------
+      - conditions:
+          - condition: trigger
+            id: visit_motion
+        sequence:
+          # Don't count while door is open
+          - condition: state
+            entity_id: !input clean_door_sensor
+            state: "off"
+
+          # Wait for motion to end + cooldown
+          - wait_for_trigger:
+              - platform: state
+                entity_id: !input motion_sensor
+                to: "off"
+                for:
+                  seconds: !input motion_off_cooldown_seconds
+            timeout: "02:00:00"
+            continue_on_timeout: false
+
+          # Re-check door still closed
+          - condition: state
+            entity_id: !input clean_door_sensor
+            state: "off"
+
+          - service: counter.increment
+            target:
+              entity_id: !input usage_counter
+
+          # Evaluate dirty conditions (event-driven)
+          - variables:
+              uses_now: "{{ states(counter_entity) | int(0) }}"
+              last_cleaned_dt: >
+                {% set s = states(last_cleaned) %}
+                {% if s in ['unknown','unavailable','none',''] %}
+                  {{ none }}
+                {% else %}
+                  {{ as_datetime(s) }}
+                {% endif %}
+              hours_since_clean: >
+                {% if last_cleaned_dt is none %}
+                  999999
+                {% else %}
+                  {{ ((as_timestamp(now()) - as_timestamp(last_cleaned_dt)) / 3600) | float(0) }}
+                {% endif %}
+              should_be_dirty: "{{ (uses_now >= (uses_threshold | int(0))) or (hours_since_clean >= (hours_threshold | float(0))) }}"
+
+          - choose:
+              - conditions:
+                  - condition: template
+                    value_template: "{{ should_be_dirty }}"
+                sequence:
+                  - service: input_boolean.turn_on
+                    target:
+                      entity_id: !input dirty_boolean
+
+      # ---------------------------
+      # Branch 2: Cleaning event
+      # ---------------------------
+      - conditions:
+          - condition: trigger
+            id: clean_door_open
+        sequence:
+          - variables:
+              opened_at_ts: "{{ as_timestamp(now()) }}"
+
+          - wait_for_trigger:
+              - platform: state
+                entity_id: !input clean_door_sensor
+                to: "off"
+            timeout: "02:00:00"
+            continue_on_timeout: false
+
+          - variables:
+              open_seconds: "{{ (as_timestamp(now()) - opened_at_ts) | float(0) }}"
+
+          # IMPORTANT: no !input inside this template
+          - condition: template
+            value_template: "{{ open_seconds >= (min_clean_open_seconds | float(0)) }}"
+
+          - service: input_datetime.set_datetime
+            target:
+              entity_id: !input last_cleaned_datetime
+            data:
+              datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+
+          - service: counter.reset
+            target:
+              entity_id: !input usage_counter
+
+          - service: input_boolean.turn_off
+            target:
+              entity_id: !input dirty_boolean
