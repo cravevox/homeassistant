@@ -1,0 +1,1132 @@
+blueprint:
+  name: "🐾 LitterMinder"
+  description: |
+    ## 🐾 LitterMinder — Smart litter box usage & cleaning tracker with reminders
+
+    This blueprint tracks how often your litter box is used and when it was
+    last cleaned, then flags it as **needs cleaning** and (optionally) sends
+    you a reminder. It uses a **motion sensor** to count visits and a
+    **door / lid sensor** to detect when you clean it.
+
+    - **Motion sensor** — counts a "visit" each time the box is used.
+    - **Door / lid sensor** — opening the box's door, lid, or a nearby
+      cabinet door for a few seconds marks it **cleaned**: the visit counter
+      resets, the last-cleaned time updates, and the dirty flag clears.
+    - **Dirty flag** — turns on when the box has been used too many times
+      **or** too many hours have passed since the last cleaning.
+
+    <details><summary><b>Features</b> 🔔</summary>
+    <p></p>
+    <ul>
+      <li><b>Usage tracking</b> — a <code>counter</code> helper counts each
+          visit. A minimum-motion duration and a cooldown prevent
+          double-counting a single visit or the cat lingering nearby.</li>
+      <li><b>Cleaning detection</b> — a human-only door / lid sensor marks the
+          box cleaned when held open long enough, so a cat brushing past the
+          sensor never counts as a cleaning.</li>
+      <li><b>Dual dirty thresholds</b> — flag the box dirty after a number of
+          uses <b>or</b> after a number of hours since the last cleaning,
+          whichever comes first.</li>
+      <li><b>Mobile push notifications</b> — send a reminder to one or more
+          Home Assistant Companion app devices when the box needs cleaning.</li>
+      <li><b>Alexa announcements</b> — announce on one or more Echo devices via
+          the Alexa Media Player integration.</li>
+      <li><b>TTS (text-to-speech) / Speaker announcements</b> — announce on any
+          speaker using a Home Assistant TTS engine (Google TTS, Home Assistant
+          Voice, Piper, Nabu Casa Cloud, OpenAI, and more). Supports two TTS
+          engines for mixed speaker setups.</li>
+      <li><b>Quiet hours</b> — suppress reminders during sleeping hours with
+          per-channel control (e.g. silence speakers but keep mobile alerts).
+          Dashboard helpers still update. Set times manually or use a Schedule
+          helper to share quiet hours across multiple automations.</li>
+      <li><b>Usage-trend tracking</b> — optionally count every visit into
+          lifetime, per-day, and per-week <code>counter</code> helpers so you
+          can graph how often the box is used and watch the daily average
+          change week over week.</li>
+      <li><b>Dashboard helpers</b> — the dirty <code>input_boolean</code>, the
+          last-cleaned <code>input_datetime</code>, and the visit
+          <code>counter</code> all double as dashboard indicators.</li>
+    </ul>
+    </details>
+
+    <details><summary><b>Setup guide</b> 🛠️</summary>
+    <p></p>
+    <ol>
+      <li>Create the four helpers this blueprint needs (you can create each one
+          directly from its dropdown using the "Create a new … helper" option,
+          no need to leave the blueprint config):
+        <ul>
+          <li>A <b>Toggle</b> (<code>input_boolean</code>) — e.g.
+              "Litter Box Needs Cleaning".</li>
+          <li>A <b>Date and/or time</b> (<code>input_datetime</code>) with
+              <b>both date and time</b> enabled — e.g. "Litter Box Last
+              Cleaned".</li>
+          <li>A <b>Counter</b> (<code>counter</code>) — e.g. "Litter Box Times
+              Used".</li>
+        </ul>
+      </li>
+      <li>Create an automation from this blueprint.</li>
+      <li>In <b>Litter Box — Sensors &amp; Helpers</b>, select your motion
+          sensor, your door / lid sensor, and the three helpers above.</li>
+      <li>In <b>Dirty Thresholds</b>, choose how many uses and how many hours
+          should mark the box dirty.</li>
+      <li>(Optional) Fine-tune <b>Detection Tuning</b> if you get double counts
+          or missed cleanings.</li>
+      <li>(Optional) Enable any of the notification sections — Mobile, Alexa,
+          or TTS — to get reminded when the box needs cleaning.</li>
+      <li>Save the automation. If this is the first time you've added the
+          blueprint, restart Home Assistant so it fully loads.</li>
+      <li><b>Set a starting point:</b> open your "Last Cleaned" helper and set
+          it to now, and reset your visit counter to 0, so the blueprint starts
+          from a clean slate.</li>
+      <li><b>Test your setup:</b> Go to Developer Tools → Actions →
+          <code>automation.trigger</code>, select your LitterMinder automation,
+          and run it. This sends a test message to <b>all</b> configured
+          notification channels (mobile push, Alexa, TTS speakers) so you can
+          verify everything is connected. It does not change any helpers or
+          simulate a visit — it only tests notifications.</li>
+    </ol>
+    <p></p>
+    <h4>How cleaning detection works</h4>
+    <p>The blueprint marks the box cleaned when the door / lid sensor stays
+    <b>open</b> for at least the "minimum door open time" you set. This is what
+    separates a real cleaning from a cat nudging the sensor — a cat won't hold
+    the door open for 20 seconds. When a cleaning is detected, the visit counter
+    resets to 0, the last-cleaned time is set to now, and the dirty flag clears.
+    You don't need to wait for the door to close.</p>
+    </details>
+
+    <details><summary><b>Quiet hours</b> 🌙</summary>
+    <p></p>
+    <p>Suppress reminders during quiet hours — with per-channel control. For
+    example, silence Alexa and TTS speakers at night while still receiving
+    mobile push notifications. Dashboard helpers still update normally, so the
+    dirty flag and counter always reflect the current state. Two modes are
+    available:</p>
+    <ul>
+      <li><b>Manual times</b> — set a start and end time. If the end time is
+          earlier than the start time, the window wraps over midnight
+          (e.g. 10:00 PM to 7:00 AM).</li>
+      <li><b>Schedule helper</b> — use a <code>schedule</code> helper entity to
+          define quiet hours. When the schedule is "on", reminders are
+          suppressed. Useful if you want to share the same quiet hours across
+          multiple automations from a single helper.</li>
+    </ul>
+    </details>
+
+    <details><summary><b>Usage trends &amp; dashboard graphs</b> 📈</summary>
+    <p></p>
+    <p>Enable the <b>Usage Trends</b> section to count every visit into up to
+    three <code>counter</code> helpers. These are separate from the
+    "times used" counter (which resets when you clean) and are <b>never</b>
+    reset by cleaning — they exist purely to track how often the box is
+    used over time:</p>
+    <ul>
+      <li><b>Total visits (lifetime)</b> — never resets. This is the one to
+          use for long-term statistics (see the advanced recipe below).</li>
+      <li><b>Visits today</b> — resets automatically at the daily reset time
+          you choose. Its peak each day is that day's total.</li>
+      <li><b>Visits this week</b> — resets automatically on the weekday you
+          choose. Its peak each week is that week's total; divide by 7 for the
+          daily average.</li>
+    </ul>
+    <p><b>Quick dashboard (no extra config):</b> add a <b>History</b> card for
+    "Visits today" and "Visits this week". You'll see a daily/weekly sawtooth
+    where each peak is the day's or week's total — perfect for eyeballing
+    whether usage is climbing or dropping.</p>
+    <p><b>Long-term trends with automatic averages (advanced, a little YAML):</b>
+    Home Assistant keeps <i>long-term statistics</i> only for sensors, not
+    counters. To graph the daily average week over week for months, mirror the
+    lifetime counter into a statistics-tracked sensor and feed it to a
+    <code>utility_meter</code>. Add this to your <code>configuration.yaml</code>
+    (rename entities to match your lifetime counter), restart, then put a
+    <b>Statistics Graph</b> card on <code>sensor.litter_visits_daily</code>
+    (period: day) — it will plot daily totals and can show the mean:</p>
+    <pre>
+    template:
+      - sensor:
+          - name: "Litter Visits Total"
+            unique_id: litter_visits_total
+            state: "{{ states('counter.litter_box_total_visits') | int(0) }}"
+            state_class: total_increasing
+
+    utility_meter:
+      litter_visits_daily:
+        source: sensor.litter_visits_total
+        cycle: daily
+      litter_visits_weekly:
+        source: sensor.litter_visits_total
+        cycle: weekly
+    </pre>
+    <p>A rising or falling daily average can be an early sign of a health
+    change — if you notice a sustained shift, it's worth a chat with your vet.</p>
+    </details>
+
+    ---
+
+    **Author:** CraveVox
+    **Version:** 1.0.0
+    **Last updated:** 2026-07-14
+
+  domain: automation
+  source_url: https://github.com/cravevox/homeassistant/blob/main/blueprints/automation/litterminder.yaml
+  author: CraveVox
+  homeassistant:
+    min_version: "2024.10.0"
+
+  input:
+    # =========================================================================
+    #  SECTION 1 — SENSORS & HELPERS
+    # =========================================================================
+    core_section:
+      name: "Litter Box — Sensors & Helpers"
+      icon: mdi:cat
+      collapsed: false
+      description: >
+        The sensors that detect usage and cleaning, plus the three helpers
+        that store state and double as dashboard indicators.
+      input:
+        motion_sensor:
+          name: "Litter box motion sensor"
+          description: >
+            A binary sensor that detects motion at the litter box. Each time
+            the box is used, this triggers a visit count. Position it so it
+            only sees the box, not general room traffic.
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: binary_sensor
+
+        clean_door_sensor:
+          name: "Cleaning door / lid sensor (human-only)"
+          description: >
+            A binary sensor on the door, lid, or nearby cabinet you open to
+            clean the box. Holding it open for the "minimum door open time"
+            (set in Detection Tuning) marks the box as cleaned. Choose a
+            sensor a cat can't trigger by brushing past.
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: binary_sensor
+
+        dirty_boolean:
+          name: "Dirty / needs-cleaning toggle (input_boolean)"
+          description: >
+            An input_boolean that turns ON when the box needs cleaning and OFF
+            when it's cleaned. Doubles as a dashboard indicator. Use the
+            "Create a new Toggle helper" option in the dropdown if you don't
+            have one yet (e.g. "Litter Box Needs Cleaning").
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: input_boolean
+
+        last_cleaned_datetime:
+          name: "Last cleaned (input_datetime)"
+          description: >
+            An input_datetime helper (with BOTH date and time enabled) that
+            records when the box was last cleaned. The blueprint reads its
+            timestamp attribute, so time zones are handled correctly. Use the
+            "Create a new Date and/or time helper" option in the dropdown if
+            you don't have one yet (e.g. "Litter Box Last Cleaned").
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: input_datetime
+
+        usage_counter:
+          name: "Times used counter (counter)"
+          description: >
+            A counter helper that counts visits since the last cleaning. Resets
+            to 0 when the box is cleaned. Use the "Create a new Counter helper"
+            option in the dropdown if you don't have one yet (e.g. "Litter Box
+            Times Used").
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: counter
+
+    # =========================================================================
+    #  SECTION 2 — DIRTY THRESHOLDS
+    # =========================================================================
+    thresholds_section:
+      name: "Dirty Thresholds"
+      icon: mdi:broom
+      collapsed: true
+      description: >
+        Choose when the box should be flagged as needing a clean. The dirty
+        flag turns on when EITHER threshold is met — whichever comes first.
+      input:
+        dirty_after_uses:
+          name: "Mark dirty after this many uses"
+          description: >
+            Turn the dirty flag on once the visit counter reaches this many
+            uses since the last cleaning.
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 50
+              step: 1
+              unit_of_measurement: uses
+              mode: slider
+
+        dirty_after_hours:
+          name: "Mark dirty after this many hours since last cleaned"
+          description: >
+            Turn the dirty flag on once this many hours have passed since the
+            last cleaning, even if the use count is low. Evaluated on every
+            visit and re-checked every 15 minutes.
+          default: 16
+          selector:
+            number:
+              min: 1
+              max: 168
+              step: 1
+              unit_of_measurement: h
+              mode: slider
+
+    # =========================================================================
+    #  SECTION 3 — DETECTION TUNING
+    # =========================================================================
+    tuning_section:
+      name: "Detection Tuning"
+      icon: mdi:tune
+      collapsed: true
+      description: >
+        Fine-tune how visits and cleanings are detected. The defaults work for
+        most setups — adjust these only if you see double counts, missed
+        visits, or missed cleanings.
+      input:
+        min_motion_on_seconds:
+          name: "Minimum motion duration to count a visit (seconds)"
+          description: >
+            The motion sensor must stay ON continuously for this long before a
+            visit is counted. Raise it if brief motion (a cat walking past)
+            causes false counts; lower it if quick visits are missed.
+          default: 5
+          selector:
+            number:
+              min: 1
+              max: 60
+              step: 1
+              unit_of_measurement: s
+              mode: slider
+
+        motion_off_cooldown_seconds:
+          name: "Cooldown between counted visits (seconds)"
+          description: >
+            The minimum time that must pass after a counted visit before
+            another visit can be counted. Prevents a single visit (where the
+            motion sensor flickers on and off) from being counted several
+            times. Raise it if one visit is counted multiple times.
+          default: 90
+          selector:
+            number:
+              min: 5
+              max: 600
+              step: 5
+              unit_of_measurement: s
+              mode: slider
+
+        min_door_open_seconds_for_clean:
+          name: "Minimum door open time to count as a cleaning (seconds)"
+          description: >
+            The cleaning door / lid sensor must stay OPEN for this long before
+            a cleaning is recorded. This is what separates a real cleaning from
+            a cat nudging the sensor. Raise it if accidental bumps register as
+            cleanings; lower it if quick cleanings are missed.
+          default: 20
+          selector:
+            number:
+              min: 1
+              max: 600
+              step: 1
+              unit_of_measurement: s
+              mode: slider
+
+    # =========================================================================
+    #  SECTION 4 — USAGE TRENDS (OPTIONAL)
+    # =========================================================================
+    trends_section:
+      name: "Usage Trends"
+      icon: mdi:chart-line
+      collapsed: true
+      description: >
+        Count every visit into lifetime, daily, and/or weekly counter helpers
+        so you can graph how often the box is used over time. These counters
+        are separate from the "times used" counter and are never reset by
+        cleaning. Leave any counter blank to skip it. See the "Usage trends &
+        dashboard graphs" section at the top for dashboard card recipes.
+      input:
+        enable_trends:
+          name: Enable usage-trend tracking
+          description: >
+            If enabled, each counted visit also increments whichever trend
+            counters you provide below.
+          default: false
+          selector:
+            boolean: {}
+
+        total_counter:
+          name: "Total visits — lifetime (counter, never resets)"
+          description: >
+            A counter that counts every visit and is never reset by this
+            blueprint. Best source for long-term statistics graphs. Use the
+            "Create a new Counter helper" option in the dropdown (e.g. "Litter
+            Box Total Visits"). Leave blank to skip.
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: counter
+
+        daily_counter:
+          name: "Visits today (counter, auto-resets daily)"
+          description: >
+            A counter that counts visits since the daily reset time below. Its
+            peak each day is that day's total. Use the "Create a new Counter
+            helper" option (e.g. "Litter Box Visits Today"). Leave blank to
+            skip.
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: counter
+
+        weekly_counter:
+          name: "Visits this week (counter, auto-resets weekly)"
+          description: >
+            A counter that counts visits since the weekly reset day below. Its
+            peak each week is that week's total; divide by 7 for the daily
+            average. Use the "Create a new Counter helper" option (e.g. "Litter
+            Box Visits This Week"). Leave blank to skip.
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: counter
+
+        daily_reset_time:
+          name: "Daily reset time"
+          description: >
+            The time each day when the "Visits today" counter resets to 0
+            (local time). The "Visits this week" counter resets at this same
+            time on the weekly reset day.
+          default: "00:00:00"
+          selector:
+            time: {}
+
+        weekly_reset_day:
+          name: "Weekly reset day"
+          description: >
+            The day of the week when the "Visits this week" counter resets to 0
+            (at the daily reset time).
+          default: "0"
+          selector:
+            select:
+              multiple: false
+              mode: dropdown
+              options:
+                - label: Monday
+                  value: "0"
+                - label: Tuesday
+                  value: "1"
+                - label: Wednesday
+                  value: "2"
+                - label: Thursday
+                  value: "3"
+                - label: Friday
+                  value: "4"
+                - label: Saturday
+                  value: "5"
+                - label: Sunday
+                  value: "6"
+
+    # =========================================================================
+    #  SECTION 5 — MOBILE NOTIFICATIONS (OPTIONAL)
+    # =========================================================================
+    mobile_section:
+      name: "Mobile notifications"
+      icon: mdi:cellphone
+      collapsed: true
+      description: >
+        Send a push notification to one or more Home Assistant Companion app
+        devices when the litter box needs cleaning.
+      input:
+        send_mobile_notifications:
+          name: Enable mobile notifications
+          description: >
+            If enabled, a push notification is sent to the selected devices
+            when the box is flagged as needing cleaning.
+          default: false
+          selector:
+            boolean: {}
+
+        mobile_devices:
+          name: Mobile devices
+          description: >
+            Select one or more Home Assistant Companion app devices to receive
+            notifications.
+          default: []
+          selector:
+            device:
+              multiple: true
+              filter:
+                - integration: mobile_app
+
+        mobile_title:
+          name: "Notification title (mobile)"
+          description: >
+            Title for the mobile push notification.
+          default: "LitterMinder"
+          selector:
+            text: {}
+
+        mobile_message:
+          name: "Notification message (mobile)"
+          description: >
+            Message body for the mobile push notification.
+          default: "🐾 The litter box needs cleaning."
+          selector:
+            text:
+              multiline: true
+
+    # =========================================================================
+    #  SECTION 6 — ALEXA ANNOUNCEMENTS (OPTIONAL)
+    # =========================================================================
+    alexa_section:
+      name: "Alexa announcements"
+      icon: mdi:speaker-message
+      collapsed: true
+      description: >
+        Announce on Amazon Echo devices using the Alexa Media Player
+        integration when the box needs cleaning. Requires the Alexa Media
+        Player custom component (available via HACS).
+      input:
+        enable_alexa:
+          name: Enable Alexa announcements
+          description: >
+            If enabled, an announcement plays on the selected Echo devices when
+            the box needs cleaning.
+          default: false
+          selector:
+            boolean: {}
+
+        alexa_targets:
+          name: Alexa media player targets
+          description: >
+            Select one or more Echo/Alexa media player entities to announce on.
+            These must be media_player entities from the Alexa Media Player
+            integration.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: media_player
+
+        alexa_announce_type:
+          name: Alexa announcement type
+          description: >
+            "Announce" plays the standard Alexa chime before the message.
+            "TTS" plays the message directly without a chime.
+          default: "announce"
+          selector:
+            select:
+              multiple: false
+              options:
+                - label: Announce (with chime)
+                  value: "announce"
+                - label: TTS (no chime)
+                  value: "tts"
+
+        alexa_service_name:
+          name: Alexa notify service name
+          description: >
+            The name of your Alexa Media Player notify service. Most
+            installations use the default "notify.alexa_media", but if you
+            renamed it or have multiple Alexa integrations, enter your service
+            name here.
+          default: "notify.alexa_media"
+          selector:
+            text: {}
+
+        alexa_message:
+          name: "Announcement message (Alexa)"
+          description: >
+            Message to announce on Alexa when the box needs cleaning.
+          default: "The litter box needs cleaning."
+          selector:
+            text:
+              multiline: true
+
+    # =========================================================================
+    #  SECTION 7 — TTS / SPEAKER ANNOUNCEMENTS (OPTIONAL)
+    # =========================================================================
+    tts_section:
+      name: "TTS (text-to-speech) / Speaker announcements"
+      icon: mdi:speaker-message
+      collapsed: true
+      description: >
+        Announce on any speaker using a Home Assistant TTS (text-to-speech)
+        engine — Google TTS, Home Assistant Voice, Piper, Nabu Casa Cloud, and
+        more. Supports two TTS engines for mixed speaker setups.
+      input:
+        enable_tts:
+          name: Enable TTS / Speaker announcements
+          description: >
+            If enabled, a TTS announcement plays on the selected speakers when
+            the box needs cleaning. You must also select a TTS engine entity
+            and at least one speaker below.
+          default: false
+          selector:
+            boolean: {}
+
+        tts_primary_entity:
+          name: Primary TTS engine entity
+          description: >
+            The TTS engine to use for the primary speakers. The dropdown shows
+            whichever TTS integrations you have installed (e.g. Google
+            Translate, Piper, Nabu Casa Cloud, OpenAI, Google AI, etc.).
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: tts
+
+        tts_primary_targets:
+          name: Primary media player targets
+          description: >
+            Select one or more media player entities to announce on using the
+            primary TTS engine.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: media_player
+
+        tts_secondary_entity:
+          name: Secondary TTS engine entity (optional)
+          description: >
+            Optional second TTS engine for a different set of speakers. Leave
+            empty if you only use one TTS engine.
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: tts
+
+        tts_secondary_targets:
+          name: Secondary media player targets
+          description: >
+            Select one or more media player entities to announce on using the
+            secondary TTS engine.
+          default: []
+          selector:
+            entity:
+              multiple: true
+              filter:
+                - domain: media_player
+
+        tts_message:
+          name: "Announcement message (TTS)"
+          description: >
+            Message to announce on TTS speakers when the box needs cleaning.
+          default: "The litter box needs cleaning."
+          selector:
+            text:
+              multiline: true
+
+    # =========================================================================
+    #  SECTION 8 — QUIET HOURS
+    # =========================================================================
+    quiet_hours_section:
+      name: "Quiet hours"
+      icon: mdi:moon-waning-crescent
+      collapsed: true
+      description: >
+        Suppress reminders during quiet hours — choose which channels to
+        silence and which to keep. For example, suppress Alexa and TTS speakers
+        at night but still receive mobile push notifications. Dashboard helpers
+        still update normally. Choose between setting times manually or using a
+        Schedule helper to centralize quiet hours across multiple automations.
+      input:
+        quiet_hours_mode:
+          name: Quiet hours mode
+          description: >
+            **Disabled** — no quiet hours, reminders sent anytime.
+            **Manual times** — set start and end times below.
+            **Schedule helper** — use a Schedule helper entity. When the
+            schedule is "on", reminders are suppressed.
+          default: "disabled"
+          selector:
+            select:
+              multiple: false
+              mode: dropdown
+              options:
+                - label: Disabled
+                  value: "disabled"
+                - label: Manual times (set below)
+                  value: "manual"
+                - label: Schedule helper
+                  value: "schedule"
+
+        quiet_hours_schedule:
+          name: "Schedule helper (schedule mode only)"
+          description: >
+            A Schedule helper entity that defines your quiet hours. When the
+            schedule is "on", reminders are suppressed. Only used if quiet
+            hours mode is "Schedule helper" above.
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: schedule
+
+        quiet_hours_start:
+          name: "Start time (manual mode only)"
+          description: >
+            The time quiet hours begin (local time). Only used if quiet hours
+            mode is "Manual times" above.
+          default: "22:00:00"
+          selector:
+            time: {}
+
+        quiet_hours_end:
+          name: "End time (manual mode only)"
+          description: >
+            The time quiet hours end (local time). If the end time is earlier
+            than the start time, the window wraps over midnight (e.g. 10:00 PM
+            to 7:00 AM). Only used if quiet hours mode is "Manual times" above.
+          default: "07:00:00"
+          selector:
+            time: {}
+
+        quiet_hours_channels:
+          name: "Channels to suppress during quiet hours"
+          description: >
+            Select which channels to suppress during quiet hours. Channels
+            **not** in this list still send reminders during quiet hours.
+          default:
+            - "mobile"
+            - "alexa"
+            - "tts"
+          selector:
+            select:
+              multiple: true
+              mode: dropdown
+              options:
+                - label: Mobile notifications
+                  value: "mobile"
+                - label: Alexa announcements
+                  value: "alexa"
+                - label: TTS / Speaker announcements
+                  value: "tts"
+
+# =============================================================================
+#  ARCHITECTURE
+# =============================================================================
+# Event-driven (not polling). All five configured entities are REQUIRED, so
+# there are no empty-entity issues that would force a polling design.
+#
+#   Trigger "visit"       — motion ON for the minimum duration -> count a visit
+#   Trigger "cleaned"     — door/lid OPEN for the minimum duration -> cleaned
+#   Trigger "reevaluate"  — every 15 min -> re-check the hours-since-cleaned
+#                           threshold so the box can go dirty on time alone
+#   Manual (no trigger)   — automation.trigger -> send test notifications only
+#
+# mode: queued guarantees no trigger is ever dropped (the old design used
+# mode: parallel with wait_for_trigger, which could silently drop the cleaning
+# trigger when motion runs piled up — the root cause of "cleaning stopped
+# updating state"). All actions here are near-instant, so queuing is cheap.
+#
+# Cleaning uses a `for:` duration on the door OPEN trigger instead of waiting
+# for the door to close, so there is no race and no dependency on a close event.
+#
+# Hours-since-cleaned is computed from the input_datetime `timestamp` attribute
+# (always timezone-correct) rather than parsing the state string with
+# as_datetime (which is affected by the HA input_datetime timezone quirks —
+# see home-assistant/core#174351).
+# =============================================================================
+
+mode: queued
+max: 10
+max_exceeded: silent
+
+triggers:
+  - trigger: state
+    id: visit
+    entity_id: !input motion_sensor
+    to: "on"
+    for:
+      seconds: !input min_motion_on_seconds
+
+  - trigger: state
+    id: cleaned
+    entity_id: !input clean_door_sensor
+    to: "on"
+    for:
+      seconds: !input min_door_open_seconds_for_clean
+
+  - trigger: time_pattern
+    id: reevaluate
+    minutes: "/15"
+
+  - trigger: time
+    id: trend_reset
+    at: !input daily_reset_time
+
+conditions: []
+
+actions:
+  # -------------------------------------------------------------------------
+  #  Load inputs into variables and compute shared state
+  # -------------------------------------------------------------------------
+  - variables:
+      # Core entities
+      door_entity: !input clean_door_sensor
+      dirty_bool: !input dirty_boolean
+      last_cleaned: !input last_cleaned_datetime
+      counter_entity: !input usage_counter
+
+      # Thresholds & tuning
+      uses_threshold: !input dirty_after_uses
+      hours_threshold: !input dirty_after_hours
+      cooldown_seconds: !input motion_off_cooldown_seconds
+
+      # Usage trends
+      trends_enabled: !input enable_trends
+      total_counter: !input total_counter
+      daily_counter: !input daily_counter
+      weekly_counter: !input weekly_counter
+      weekly_reset_day: !input weekly_reset_day
+
+      # Notification config
+      send_mobile: !input send_mobile_notifications
+      mobile_devices_var: !input mobile_devices
+      mobile_title_var: !input mobile_title
+      mobile_message_var: !input mobile_message
+      enable_alexa: !input enable_alexa
+      alexa_targets_var: !input alexa_targets
+      alexa_type: !input alexa_announce_type
+      alexa_svc: !input alexa_service_name
+      alexa_message_var: !input alexa_message
+      enable_tts: !input enable_tts
+      tts_primary_entity_var: !input tts_primary_entity
+      tts_primary_targets_var: !input tts_primary_targets
+      tts_secondary_entity_var: !input tts_secondary_entity
+      tts_secondary_targets_var: !input tts_secondary_targets
+      tts_message_var: !input tts_message
+
+      # Quiet hours
+      quiet_mode: !input quiet_hours_mode
+      quiet_schedule_entity: !input quiet_hours_schedule
+      quiet_start: !input quiet_hours_start
+      quiet_end: !input quiet_hours_end
+      quiet_channels: !input quiet_hours_channels
+
+      # Which trigger fired? ('manual' when run via automation.trigger)
+      trig_id: "{{ trigger.id if trigger is not none else 'manual' }}"
+
+      # Hours since the box was last cleaned (timezone-safe via timestamp attr).
+      # If never set, treat as 0 so we never nag before first setup.
+      hours_since_clean: >-
+        {% set ts = state_attr(last_cleaned, 'timestamp') %}
+        {% if ts is none %}
+          {{ 0 }}
+        {% else %}
+          {{ ((as_timestamp(now()) - ts) / 3600) | float(0) }}
+        {% endif %}
+
+      # Is the dirty flag already on right now?
+      currently_dirty: "{{ is_state(dirty_bool, 'on') }}"
+
+      # Quiet hours check (end time is exclusive — reminders resume at the end time)
+      is_quiet: >-
+        {% if quiet_mode == 'disabled' %}
+          {{ false }}
+        {% elif quiet_mode == 'schedule' %}
+          {% if quiet_schedule_entity is not none and quiet_schedule_entity != '' %}
+            {{ states(quiet_schedule_entity) == 'on' }}
+          {% else %}
+            {{ false }}
+          {% endif %}
+        {% elif quiet_mode == 'manual' %}
+          {% set now_time = now().time() %}
+          {% set start = strptime(quiet_start, '%H:%M:%S').time() %}
+          {% set end_t = strptime(quiet_end, '%H:%M:%S').time() %}
+          {% if start <= end_t %}
+            {{ start <= now_time < end_t }}
+          {% else %}
+            {{ now_time >= start or now_time < end_t }}
+          {% endif %}
+        {% else %}
+          {{ false }}
+        {% endif %}
+
+  # -------------------------------------------------------------------------
+  #  MANUAL TRIGGER — test all configured notification channels, then stop.
+  #  Does not change any helper or simulate a visit.
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ trig_id == 'manual' }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ send_mobile and (mobile_devices_var | length > 0) }}"
+        then:
+          - repeat:
+              for_each: "{{ mobile_devices_var }}"
+              sequence:
+                - action: >-
+                    notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}
+                  data:
+                    title: "LitterMinder — Test"
+                    message: "Manual test notification — LitterMinder is working! All notification channels are being tested."
+                  continue_on_error: true
+
+      - if:
+          - condition: template
+            value_template: "{{ enable_alexa and (alexa_targets_var | length > 0) }}"
+        then:
+          - action: "{{ alexa_svc }}"
+            data:
+              target: "{{ alexa_targets_var }}"
+              message: "LitterMinder test notification. If you can hear this, Alexa announcements are working."
+              data:
+                type: "{{ alexa_type }}"
+            continue_on_error: true
+
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_primary_targets_var | length > 0)
+                 and (tts_primary_entity_var | length > 0) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_primary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_primary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "LitterMinder test notification. If you can hear this, TTS announcements are working."
+                  continue_on_error: true
+
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_secondary_targets_var | length > 0)
+                 and (tts_secondary_entity_var | length > 0) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_secondary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_secondary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "LitterMinder test notification. If you can hear this, TTS announcements are working."
+                  continue_on_error: true
+
+      - stop: "Manual test complete"
+
+  # -------------------------------------------------------------------------
+  #  CLEANED — door/lid held open long enough. Reset everything.
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ trig_id == 'cleaned' }}"
+    then:
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: "{{ last_cleaned }}"
+        data:
+          datetime: "{{ now().strftime('%Y-%m-%d %H:%M:%S') }}"
+      - action: counter.reset
+        target:
+          entity_id: "{{ counter_entity }}"
+      - action: input_boolean.turn_off
+        target:
+          entity_id: "{{ dirty_bool }}"
+      - stop: "Litter box cleaned"
+
+  # -------------------------------------------------------------------------
+  #  TREND RESET — daily reset time. Reset the "today" counter every day, and
+  #  the "this week" counter on the chosen weekday. Trend counters only.
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ trig_id == 'trend_reset' and trends_enabled }}"
+    then:
+      - if:
+          - condition: template
+            value_template: "{{ daily_counter is not none and daily_counter != '' }}"
+        then:
+          - action: counter.reset
+            target:
+              entity_id: "{{ daily_counter }}"
+      - if:
+          - condition: template
+            value_template: >-
+              {{ weekly_counter is not none and weekly_counter != ''
+                 and now().weekday() == weekly_reset_day | int(0) }}
+        then:
+          - action: counter.reset
+            target:
+              entity_id: "{{ weekly_counter }}"
+      - stop: "Trend counters reset"
+
+  # -------------------------------------------------------------------------
+  #  VISIT — motion held on long enough. Count it (respecting cooldown),
+  #  unless the box is currently being cleaned (door open).
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ trig_id == 'visit' }}"
+    then:
+      - if:
+          - condition: state
+            entity_id: !input clean_door_sensor
+            state: "off"
+          - condition: template
+            value_template: >-
+              {{ (as_timestamp(now()) - as_timestamp(states[counter_entity].last_changed))
+                 >= cooldown_seconds | float(0) }}
+        then:
+          - action: counter.increment
+            target:
+              entity_id: "{{ counter_entity }}"
+
+          # Usage-trend counters (never reset by cleaning)
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ trends_enabled and total_counter is not none and total_counter != '' }}
+            then:
+              - action: counter.increment
+                target:
+                  entity_id: "{{ total_counter }}"
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ trends_enabled and daily_counter is not none and daily_counter != '' }}
+            then:
+              - action: counter.increment
+                target:
+                  entity_id: "{{ daily_counter }}"
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ trends_enabled and weekly_counter is not none and weekly_counter != '' }}
+            then:
+              - action: counter.increment
+                target:
+                  entity_id: "{{ weekly_counter }}"
+        else:
+          - stop: "Visit ignored (box being cleaned or within cooldown)"
+
+  # -------------------------------------------------------------------------
+  #  EVALUATE DIRTY — runs for 'visit' and 'reevaluate'. Reads the counter
+  #  live so it reflects the increment above. Turns the flag on (and notifies)
+  #  only on the transition from clean -> dirty.
+  # -------------------------------------------------------------------------
+  - variables:
+      uses_now: "{{ states(counter_entity) | int(0) }}"
+      should_be_dirty: >-
+        {{ (uses_now | int(0) >= uses_threshold | int(0))
+           or (hours_since_clean | float(0) >= hours_threshold | float(0)) }}
+
+  - if:
+      - condition: template
+        value_template: "{{ should_be_dirty and not currently_dirty }}"
+    then:
+      - action: input_boolean.turn_on
+        target:
+          entity_id: "{{ dirty_bool }}"
+
+      # Mobile push
+      - if:
+          - condition: template
+            value_template: >-
+              {{ send_mobile and (mobile_devices_var | length > 0)
+                 and (not is_quiet or 'mobile' not in quiet_channels) }}
+        then:
+          - repeat:
+              for_each: "{{ mobile_devices_var }}"
+              sequence:
+                - action: >-
+                    notify.mobile_app_{{ device_attr(repeat.item, 'name') | slugify }}
+                  data:
+                    title: "{{ mobile_title_var }}"
+                    message: "{{ mobile_message_var }}"
+                  continue_on_error: true
+
+      # Alexa announcement
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_alexa and (alexa_targets_var | length > 0)
+                 and (not is_quiet or 'alexa' not in quiet_channels) }}
+        then:
+          - action: "{{ alexa_svc }}"
+            data:
+              target: "{{ alexa_targets_var }}"
+              message: "{{ alexa_message_var }}"
+              data:
+                type: "{{ alexa_type }}"
+            continue_on_error: true
+
+      # TTS — primary engine
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_primary_targets_var | length > 0)
+                 and (tts_primary_entity_var | length > 0)
+                 and (not is_quiet or 'tts' not in quiet_channels) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_primary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_primary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ tts_message_var }}"
+                  continue_on_error: true
+
+      # TTS — secondary engine (optional)
+      - if:
+          - condition: template
+            value_template: >-
+              {{ enable_tts and (tts_secondary_targets_var | length > 0)
+                 and (tts_secondary_entity_var | length > 0)
+                 and (not is_quiet or 'tts' not in quiet_channels) }}
+        then:
+          - repeat:
+              for_each: "{{ tts_secondary_targets_var }}"
+              sequence:
+                - action: tts.speak
+                  target:
+                    entity_id: "{{ tts_secondary_entity_var }}"
+                  data:
+                    media_player_entity_id: "{{ repeat.item }}"
+                    message: "{{ tts_message_var }}"
+                  continue_on_error: true
