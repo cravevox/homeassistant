@@ -43,6 +43,10 @@ blueprint:
           lifetime, per-day, and per-week <code>counter</code> helpers so you
           can graph how often the box is used and watch the daily average
           change week over week.</li>
+      <li><b>Air purifier boost</b> — optionally run an air purifier or fan
+          at a chosen speed a few minutes after the cat leaves, for a set
+          time, then put it <b>back exactly how it was</b> (e.g. Auto mode).
+          A new visit during the boost extends it.</li>
       <li><b>Dashboard helpers</b> — the dirty <code>input_boolean</code>, the
           last-cleaned <code>input_datetime</code>, and the visit
           <code>counter</code> all double as dashboard indicators.</li>
@@ -74,6 +78,14 @@ blueprint:
           or missed cleanings.</li>
       <li>(Optional) Enable any of the notification sections — Mobile, Alexa,
           or TTS — to get reminded when the box needs cleaning.</li>
+      <li>(Optional) To track usage trends, create one more <b>Counter</b>
+          ("Litter Box Lifetime Visits") and select it in <b>Usage Trends</b>.
+          See "Usage trends &amp; dashboard graphs" below for the one extra
+          helper the graph needs.</li>
+      <li>(Optional) To boost an air purifier after visits, create a
+          <b>Timer</b> helper (tick <b>Restore</b>; no duration needed — the
+          blueprint sets it), then configure the <b>Air Purifier Boost</b>
+          section.</li>
       <li>Save the automation. If this is the first time you've added the
           blueprint, restart Home Assistant so it fully loads.</li>
       <li><b>Set a starting point:</b> open your "Last Cleaned" helper and set
@@ -116,57 +128,75 @@ blueprint:
 
     <details><summary><b>Usage trends &amp; dashboard graphs</b> 📈</summary>
     <p></p>
-    <p>Enable the <b>Usage Trends</b> section to count every visit into up to
-    three <code>counter</code> helpers. These are separate from the
-    "times used" counter (which resets when you clean) and are <b>never</b>
-    reset by cleaning — they exist purely to track how often the box is
-    used over time:</p>
-    <ul>
-      <li><b>Total visits (lifetime)</b> — never resets. This is the one to
-          use for long-term statistics (see the advanced recipe below).</li>
-      <li><b>Visits today</b> — resets automatically at the daily reset time
-          you choose. Its peak each day is that day's total.</li>
-      <li><b>Visits this week</b> — resets automatically on the weekday you
-          choose. Its peak each week is that week's total; divide by 7 for the
-          daily average.</li>
-    </ul>
-    <p><b>Quick dashboard (no extra config):</b> add a <b>History</b> card for
-    "Visits today" and "Visits this week". You'll see a daily/weekly sawtooth
-    where each peak is the day's or week's total — perfect for eyeballing
-    whether usage is climbing or dropping.</p>
-    <p><b>Long-term trends with automatic averages (advanced, a little YAML):</b>
-    Home Assistant keeps <i>long-term statistics</i> only for sensors, not
-    counters. To graph the daily average week over week for months, mirror the
-    lifetime counter into a statistics-tracked sensor and feed it to a
-    <code>utility_meter</code>. Add this to your <code>configuration.yaml</code>
-    (rename entities to match your lifetime counter), restart, then put a
-    <b>Statistics Graph</b> card on <code>sensor.litter_visits_daily</code>
-    (period: day) — it will plot daily totals and can show the mean:</p>
-    <pre>
-    template:
-      - sensor:
-          - name: "Litter Visits Total"
-            unique_id: litter_visits_total
-            state: "{{ states('counter.litter_box_total_visits') | int(0) }}"
-            state_class: total_increasing
-
-    utility_meter:
-      litter_visits_daily:
-        source: sensor.litter_visits_total
-        cycle: daily
-      litter_visits_weekly:
-        source: sensor.litter_visits_total
-        cycle: weekly
-    </pre>
+    <p>Watching how often your cat uses the box each day is one of the easiest
+    early health signals you can get. Setup takes three helpers, all created
+    in the UI — no YAML:</p>
+    <ol>
+      <li><b>Lifetime visits counter</b> (required for trends) — create a
+          <b>Counter</b> right from the "Total visits — lifetime" dropdown in
+          <b>Usage Trends</b>. The blueprint adds 1 per visit and never resets
+          it.</li>
+      <li><b>Graphable sensor</b> — Home Assistant only keeps long-term
+          statistics (the per-day graphs) for <i>sensors</i>, not counters.
+          Go to Settings → Devices &amp; services → Helpers → Create helper →
+          <b>Template</b> → <b>Template a sensor</b>, and set:
+        <ul>
+          <li>State: <code>{{ states('counter.YOUR_LIFETIME_COUNTER') }}</code></li>
+          <li>State class: <b>Total increasing</b></li>
+          <li>Under advanced options, Availability:
+              <code>{{ has_value('counter.YOUR_LIFETIME_COUNTER') }}</code>
+              — this stops a restart from being counted as a burst of
+              visits.</li>
+        </ul>
+      </li>
+      <li><b>Dashboard card</b> — add a <b>Statistics graph</b> card for that
+          sensor with Period: <b>Day</b>, Stat type: <b>Change</b>, Chart
+          type: <b>Bar</b>, Days to show: <b>14</b>. Each bar is one day's
+          visit count. Add a <b>Statistic</b> card (Stat type: Change, Period:
+          rolling window of 7 days) for a "visits in the last week" total.</li>
+    </ol>
+    <p>The optional <b>Visits today</b> counter is handy for a quick "so far
+    today" number on a dashboard; it resets at the daily reset time. The
+    <b>Visits this week</b> counter is kept for older setups — the statistics
+    graph above makes it unnecessary.</p>
     <p>A rising or falling daily average can be an early sign of a health
     change — if you notice a sustained shift, it's worth a chat with your vet.</p>
+    </details>
+
+    <details><summary><b>Air purifier boost</b> 💨</summary>
+    <p></p>
+    <p>Enable the <b>Air Purifier Boost</b> section to clear odor after each
+    visit. Works with any <code>fan</code> entity — most smart purifiers
+    (Levoit / VeSync, Winix, Xiaomi, etc.) appear as fans.</p>
+    <p><b>How it works:</b></p>
+    <ol>
+      <li>After a visit, once the motion sensor has been clear for your
+          <b>start delay</b> (so the fan doesn't spook the cat), the blueprint
+          snapshots the purifier's current setting — on/off, Auto/Sleep
+          preset, or speed.</li>
+      <li>It sets your <b>boost speed</b> and runs for your <b>boost
+          duration</b>. Another visit during the boost restarts the clock.</li>
+      <li>When the boost ends, the purifier is put back exactly how it was —
+          back to Auto, back off, back to its old speed.</li>
+    </ol>
+    <p>Cleaning the box also triggers a boost, since scooping stirs up odor
+    too.</p>
+    <p><b>Choosing a boost speed:</b> look at your fan in Developer Tools →
+    States. <code>percentage_step</code> tells you which percentages it
+    supports (e.g. 25 → 25 / 50 / 75 / 100) and <code>preset_modes</code>
+    lists the preset names. For most purifiers, <b>Percentage</b> is the right
+    choice for a boost — presets are usually Auto / Sleep.</p>
+    <p><b>After a Home Assistant restart</b> mid-boost the snapshot is lost
+    (it's kept in memory), so the purifier returns to the <b>fallback
+    preset</b> you set instead — e.g. <code>auto</code>. Leave it blank to
+    turn the purifier off in that case.</p>
     </details>
 
     ---
 
     **Author:** CraveVox
-    **Version:** 1.0.0
-    **Last updated:** 2026-07-14
+    **Version:** 1.1.0
+    **Last updated:** 2026-10-04
 
   domain: automation
   source_url: https://github.com/cravevox/homeassistant/blob/main/blueprints/automation/litterminder.yaml
@@ -307,9 +337,12 @@ blueprint:
           name: "Minimum motion duration to count a visit (seconds)"
           description: >
             The motion sensor must stay ON continuously for this long before a
-            visit is counted. Raise it if brief motion (a cat walking past)
-            causes false counts; lower it if quick visits are missed.
-          default: 5
+            visit is counted. Keep this LOW (1–2s): most PIR / occupancy
+            sensors pulse on and off during a single visit, so a high value
+            means the sensor rarely stays on long enough and visits get
+            missed. Raise it only if brief motion (a cat merely walking past)
+            causes false counts.
+          default: 1
           selector:
             number:
               min: 1
@@ -358,28 +391,27 @@ blueprint:
       icon: mdi:chart-line
       collapsed: true
       description: >
-        Count every visit into lifetime, daily, and/or weekly counter helpers
-        so you can graph how often the box is used over time. These counters
-        are separate from the "times used" counter and are never reset by
-        cleaning. Leave any counter blank to skip it. See the "Usage trends &
-        dashboard graphs" section at the top for dashboard card recipes.
+        Track how many times a day the box is used so you can spot health
+        trends. Only the lifetime counter is needed — it feeds the per-day
+        graph. See "Usage trends & dashboard graphs" at the top for the
+        3-step, no-YAML setup.
       input:
         enable_trends:
           name: Enable usage-trend tracking
           description: >
-            If enabled, each counted visit also increments whichever trend
-            counters you provide below.
+            If enabled, each counted visit also increments the trend counters
+            below.
           default: false
           selector:
             boolean: {}
 
         total_counter:
-          name: "Total visits — lifetime (counter, never resets)"
+          name: "Total visits — lifetime (counter, never resets) — REQUIRED for graphs"
           description: >
-            A counter that counts every visit and is never reset by this
-            blueprint. Best source for long-term statistics graphs. Use the
-            "Create a new Counter helper" option in the dropdown (e.g. "Litter
-            Box Total Visits"). Leave blank to skip.
+            Counts every visit and is never reset by this blueprint. This is
+            the source for the per-day statistics graph — without it, trend
+            graphs stay at 0. Use the "Create a new Counter helper" option in
+            the dropdown (e.g. "Litter Box Lifetime Visits").
           default: ""
           selector:
             entity:
@@ -388,12 +420,10 @@ blueprint:
                 - domain: counter
 
         daily_counter:
-          name: "Visits today (counter, auto-resets daily)"
+          name: "Visits today (counter, auto-resets daily) — optional"
           description: >
-            A counter that counts visits since the daily reset time below. Its
-            peak each day is that day's total. Use the "Create a new Counter
-            helper" option (e.g. "Litter Box Visits Today"). Leave blank to
-            skip.
+            A "so far today" number for your dashboard. Resets at the daily
+            reset time below. Leave blank to skip.
           default: ""
           selector:
             entity:
@@ -402,12 +432,11 @@ blueprint:
                 - domain: counter
 
         weekly_counter:
-          name: "Visits this week (counter, auto-resets weekly)"
+          name: "Visits this week (counter, auto-resets weekly) — optional"
           description: >
-            A counter that counts visits since the weekly reset day below. Its
-            peak each week is that week's total; divide by 7 for the daily
-            average. Use the "Create a new Counter helper" option (e.g. "Litter
-            Box Visits This Week"). Leave blank to skip.
+            Counts visits since the weekly reset day below. Kept for older
+            setups; the statistics graph makes it unnecessary. Leave blank to
+            skip.
           default: ""
           selector:
             entity:
@@ -452,7 +481,139 @@ blueprint:
                   value: "6"
 
     # =========================================================================
-    #  SECTION 5 — MOBILE NOTIFICATIONS (OPTIONAL)
+    #  SECTION 5 — AIR PURIFIER BOOST (OPTIONAL)
+    # =========================================================================
+    purifier_section:
+      name: "Air Purifier Boost"
+      icon: mdi:air-purifier
+      collapsed: true
+      description: >
+        Run an air purifier or fan at a boost speed after the cat leaves, then
+        put it back exactly how it was (e.g. Auto). Needs a Timer helper. See
+        "Air purifier boost" at the top for details.
+      input:
+        enable_purifier:
+          name: Enable air purifier boost
+          default: false
+          selector:
+            boolean: {}
+
+        purifier_fan:
+          name: "Air purifier / fan"
+          description: >
+            The fan entity for your purifier (e.g. fan.core_400s_series).
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: fan
+
+        purifier_timer:
+          name: "Boost timer (timer helper)"
+          description: >
+            A Timer helper the blueprint uses to time the boost. Create one with
+            the "Create a new Timer helper" option (e.g. "Litter Box Purifier
+            Boost") and tick "Restore" so a restart mid-boost still ends it.
+            Use one timer per LitterMinder automation.
+          default: ""
+          selector:
+            entity:
+              multiple: false
+              filter:
+                - domain: timer
+
+        purifier_delay_minutes:
+          name: "Start delay — minutes after the cat leaves"
+          description: >
+            How long the motion sensor must be clear before the boost starts,
+            so the fan doesn't startle the cat. 0 starts as soon as motion
+            clears.
+          default: 2
+          selector:
+            number:
+              min: 0
+              max: 60
+              step: 1
+              unit_of_measurement: min
+              mode: slider
+
+        purifier_run_minutes:
+          name: "Boost duration"
+          description: >
+            How long to run at boost speed before restoring the purifier's
+            previous setting. A new visit during the boost restarts this clock.
+          default: 15
+          selector:
+            number:
+              min: 1
+              max: 120
+              step: 1
+              unit_of_measurement: min
+              mode: slider
+
+        purifier_speed_mode:
+          name: "Boost speed type"
+          description: >
+            **Percentage** — set a fan speed (best for most purifiers).
+            **Preset** — switch to a named preset like "turbo".
+            **Just turn on** — turn on without changing the speed.
+          default: "percentage"
+          selector:
+            select:
+              multiple: false
+              options:
+                - label: Percentage
+                  value: "percentage"
+                - label: Preset mode
+                  value: "preset"
+                - label: Just turn on
+                  value: "on"
+
+        purifier_percentage:
+          name: "Boost speed (percentage mode)"
+          description: >
+            Use a multiple of your fan's percentage_step attribute — e.g. a
+            Levoit Core 400S has a step of 25, so 25 / 50 / 75 / 100.
+          default: 50
+          selector:
+            number:
+              min: 1
+              max: 100
+              step: 1
+              unit_of_measurement: "%"
+              mode: slider
+
+        purifier_preset:
+          name: "Boost preset (preset mode)"
+          description: >
+            The exact preset name from your fan's preset_modes attribute
+            (case-sensitive). Only used if speed type is "Preset mode".
+          default: ""
+          selector:
+            text: {}
+
+        purifier_fallback_preset:
+          name: "Fallback preset after a restart"
+          description: >
+            The purifier's original setting is remembered in memory only. If
+            Home Assistant restarts during a boost, the purifier is set to this
+            preset instead (e.g. "auto"). Leave blank to turn it off.
+          default: ""
+          selector:
+            text: {}
+
+        purifier_skip_quiet:
+          name: "Skip the boost during quiet hours"
+          description: >
+            If enabled, no boost runs during the quiet hours set in the "Quiet
+            hours" section (e.g. keep the purifier in Sleep mode overnight).
+          default: false
+          selector:
+            boolean: {}
+
+    # =========================================================================
+    #  SECTION 6 — MOBILE NOTIFICATIONS (OPTIONAL)
     # =========================================================================
     mobile_section:
       name: "Mobile notifications"
@@ -501,7 +662,7 @@ blueprint:
               multiline: true
 
     # =========================================================================
-    #  SECTION 6 — ALEXA ANNOUNCEMENTS (OPTIONAL)
+    #  SECTION 7 — ALEXA ANNOUNCEMENTS (OPTIONAL)
     # =========================================================================
     alexa_section:
       name: "Alexa announcements"
@@ -570,7 +731,7 @@ blueprint:
               multiline: true
 
     # =========================================================================
-    #  SECTION 7 — TTS / SPEAKER ANNOUNCEMENTS (OPTIONAL)
+    #  SECTION 8 — TTS / SPEAKER ANNOUNCEMENTS (OPTIONAL)
     # =========================================================================
     tts_section:
       name: "TTS (text-to-speech) / Speaker announcements"
@@ -650,7 +811,7 @@ blueprint:
               multiline: true
 
     # =========================================================================
-    #  SECTION 8 — QUIET HOURS
+    #  SECTION 9 — QUIET HOURS
     # =========================================================================
     quiet_hours_section:
       name: "Quiet hours"
@@ -746,7 +907,20 @@ blueprint:
 #   Trigger "cleaned"     — door/lid OPEN for the minimum duration -> cleaned
 #   Trigger "reevaluate"  — every 15 min -> re-check the hours-since-cleaned
 #                           threshold so the box can go dirty on time alone
+#   Trigger "trend_reset" — daily reset time -> reset today/week counters
+#   Trigger "purifier_start"   — motion clear for the start delay after a
+#                                visit/cleaning -> snapshot fan, boost, start timer
+#   Trigger "purifier_end"     — boost timer finished -> restore the snapshot
+#   Trigger "purifier_recover" — HA start -> a timer that expired while HA was
+#                                down fires timer.finished before automations
+#                                load, so restore any boost left running
 #   Manual (no trigger)   — automation.trigger -> send test notifications only
+#
+# Purifier boost keeps no wait/delay inside the run (that would block the
+# queue): the timer helper holds the boost duration, and the fan's prior
+# setting is snapshotted with scene.create and restored with scene.turn_on
+# (fan reproduce-state restores on/off, preset_mode and percentage correctly,
+# e.g. VeSync "auto" with percentage null).
 #
 # mode: queued guarantees no trigger is ever dropped (the old design used
 # mode: parallel with wait_for_trigger, which could silently drop the cleaning
@@ -789,6 +963,24 @@ triggers:
     id: trend_reset
     at: !input daily_reset_time
 
+  - trigger: state
+    id: purifier_start
+    entity_id: !input motion_sensor
+    from: "on"
+    to: "off"
+    for:
+      minutes: !input purifier_delay_minutes
+
+  - trigger: event
+    id: purifier_end
+    event_type: timer.finished
+    event_data:
+      entity_id: !input purifier_timer
+
+  - trigger: homeassistant
+    id: purifier_recover
+    event: start
+
 conditions: []
 
 actions:
@@ -813,6 +1005,25 @@ actions:
       daily_counter: !input daily_counter
       weekly_counter: !input weekly_counter
       weekly_reset_day: !input weekly_reset_day
+
+      # Air purifier boost
+      purifier_enabled: !input enable_purifier
+      purifier_entity: !input purifier_fan
+      purifier_timer_entity: !input purifier_timer
+      purifier_delay: !input purifier_delay_minutes
+      purifier_run: !input purifier_run_minutes
+      purifier_mode: !input purifier_speed_mode
+      purifier_pct: !input purifier_percentage
+      purifier_preset_var: !input purifier_preset
+      purifier_fallback: !input purifier_fallback_preset
+      purifier_skip_quiet_var: !input purifier_skip_quiet
+      purifier_ready: >-
+        {{ purifier_enabled
+           and purifier_entity is not none and purifier_entity != ''
+           and purifier_timer_entity is not none and purifier_timer_entity != '' }}
+      # In-memory snapshot of the fan's prior setting, unique per automation
+      purifier_scene_id: "{{ this.entity_id | replace('automation.', '') }}_purifier_snapshot"
+      purifier_scene: "scene.{{ purifier_scene_id }}"
 
       # Notification config
       send_mobile: !input send_mobile_notifications
@@ -994,6 +1205,118 @@ actions:
       - stop: "Trend counters reset"
 
   # -------------------------------------------------------------------------
+  #  PURIFIER START — motion clear for the start delay. Boost only if a visit
+  #  or cleaning happened recently (counter / last-cleaned changed within the
+  #  delay + 30 min), so general motion near the box doesn't start it.
+  #  First boost snapshots the fan; a boost already running is just extended.
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ trig_id == 'purifier_start' }}"
+    then:
+      - if:
+          - condition: template
+            value_template: >-
+              {% set last_activity = [
+                   as_timestamp(states[counter_entity].last_changed, 0),
+                   as_timestamp(states[last_cleaned].last_changed, 0)] | max %}
+              {{ purifier_ready
+                 and has_value(purifier_entity)
+                 and (as_timestamp(now()) - last_activity)
+                     <= purifier_delay | float(0) * 60 + 1800
+                 and not (purifier_skip_quiet_var and is_quiet) }}
+        then:
+          - if:
+              - condition: template
+                value_template: "{{ is_state(purifier_timer_entity, 'idle') }}"
+            then:
+              - action: scene.create
+                data:
+                  scene_id: "{{ purifier_scene_id }}"
+                  snapshot_entities: "{{ [purifier_entity] }}"
+              - choose:
+                  - conditions: "{{ purifier_mode == 'percentage' }}"
+                    sequence:
+                      - action: fan.turn_on
+                        target:
+                          entity_id: "{{ purifier_entity }}"
+                        data:
+                          percentage: "{{ purifier_pct | int }}"
+                        continue_on_error: true
+                  - conditions: "{{ purifier_mode == 'preset' and purifier_preset_var | length > 0 }}"
+                    sequence:
+                      - action: fan.turn_on
+                        target:
+                          entity_id: "{{ purifier_entity }}"
+                        data:
+                          preset_mode: "{{ purifier_preset_var }}"
+                        continue_on_error: true
+                default:
+                  - action: fan.turn_on
+                    target:
+                      entity_id: "{{ purifier_entity }}"
+                    continue_on_error: true
+          # (Re)start the timer — extends a boost that is already running
+          - action: timer.start
+            target:
+              entity_id: "{{ purifier_timer_entity }}"
+            data:
+              duration: "{{ (purifier_run | int(15)) * 60 }}"
+      - stop: "Purifier boost handled"
+
+  # -------------------------------------------------------------------------
+  #  PURIFIER END / RECOVER — restore the fan's prior setting from the
+  #  snapshot; if the snapshot was lost to a restart, use the fallback preset
+  #  (or turn off). On HA start, only act if the timer is idle but the fan is
+  #  still sitting at the boost setting (its timer expired while HA was down).
+  # -------------------------------------------------------------------------
+  - if:
+      - condition: template
+        value_template: "{{ trig_id in ['purifier_end', 'purifier_recover'] }}"
+    then:
+      - if:
+          - condition: template
+            value_template: >-
+              {% if not purifier_ready %}
+                {{ false }}
+              {% elif trig_id == 'purifier_end' %}
+                {{ true }}
+              {% else %}
+                {{ is_state(purifier_timer_entity, 'idle')
+                   and is_state(purifier_entity, 'on')
+                   and ((purifier_mode == 'percentage'
+                         and state_attr(purifier_entity, 'percentage') == purifier_pct | int)
+                     or (purifier_mode == 'preset' and purifier_preset_var != ''
+                         and state_attr(purifier_entity, 'preset_mode') == purifier_preset_var)) }}
+              {% endif %}
+        then:
+          - if:
+              - condition: template
+                value_template: "{{ expand(purifier_scene) | count > 0 }}"
+            then:
+              - action: scene.turn_on
+                target:
+                  entity_id: "{{ purifier_scene }}"
+                continue_on_error: true
+            else:
+              - if:
+                  - condition: template
+                    value_template: "{{ purifier_fallback | length > 0 }}"
+                then:
+                  - action: fan.turn_on
+                    target:
+                      entity_id: "{{ purifier_entity }}"
+                    data:
+                      preset_mode: "{{ purifier_fallback }}"
+                    continue_on_error: true
+                else:
+                  - action: fan.turn_off
+                    target:
+                      entity_id: "{{ purifier_entity }}"
+                    continue_on_error: true
+      - stop: "Purifier restore handled"
+
+  # -------------------------------------------------------------------------
   #  VISIT — motion held on long enough. Count it (respecting cooldown),
   #  unless the box is currently being cleaned (door open).
   # -------------------------------------------------------------------------
@@ -1023,6 +1346,19 @@ actions:
               - action: counter.increment
                 target:
                   entity_id: "{{ total_counter }}"
+          - if:
+              - condition: template
+                value_template: >-
+                  {{ trends_enabled and (total_counter is none or total_counter == '') }}
+            then:
+              - action: system_log.write
+                data:
+                  level: warning
+                  logger: blueprints.litterminder
+                  message: >-
+                    {{ this.attributes.friendly_name }}: usage trends are enabled
+                    but no lifetime counter is selected, so trend graphs will stay
+                    at 0. Select one under Usage Trends.
           - if:
               - condition: template
                 value_template: >-
